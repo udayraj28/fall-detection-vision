@@ -1,0 +1,37 @@
+{
+  "camera_id": "M_D_2",
+  "frame_width": 1280,
+  "frame_height": 720,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_left",
+  "perspective": {
+    "coef_h_x": 0.08934491243589775,
+    "coef_h_y": 0.638670382354547,
+    "intercept_h": -63.370476671108804,
+    "coef_w_x": 0.15189981734174265,
+    "coef_w_y": 0.14343148271154993,
+    "intercept_w": -10.595602159788067,
+    "r_squared": 0.8812203863817519,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 361.7474060058594,
+    "band_high": 462.37828063964844,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 231.41285705566406,
+    "p25_height": 167.2368278503418,
+    "p75_height": 248.9384536743164,
+    "height_std": 37.33791825287413,
+    "median_width": 77.10653686523438,
+    "p25_width": 67.52169036865234,
+    "p75_width": 79.72027587890625,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

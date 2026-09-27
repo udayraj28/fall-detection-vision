@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MANDOWN V6 — Asymmetric-Posture Fix &amp; Detection-Recovery Reference</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.55;
+    font-size: 10.8pt;
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20pt; color: #0d3b66; border-bottom: 3px solid #0d3b66; padding-bottom: 8px; margin-top: 0; }
+  h1.doc-title { margin-bottom: 2px; }
+  .subtitle { color: #555; font-size: 11pt; margin-top: 0; margin-bottom: 18px; }
+  h2 { font-size: 14.5pt; color: #0d3b66; border-bottom: 1.5px solid #b9d3e6; padding-bottom: 4px; margin-top: 30px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #144d75; margin-top: 20px; page-break-after: avoid; }
+  h4 { font-size: 10.8pt; color: #333; margin-top: 14px; margin-bottom: 4px; }
+  p { margin: 8px 0; }
+  code, pre, .mono { font-family: "SF Mono", Consolas, "Courier New", monospace; font-size: 9.3pt; }
+  code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; color: #a3242c; }
+  pre { background: #f5f6f8; border: 1px solid #dbe1e8; border-left: 3px solid #0d3b66; padding: 10px 12px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 18px 0; font-size: 9.4pt; }
+  th, td { border: 1px solid #cfd8e3; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #0d3b66; color: white; }
+  tr:nth-child(even) td { background: #f4f7fa; }
+  .tag { display: inline-block; font-size: 8.5pt; font-weight: 600; padding: 1px 8px; border-radius: 10px; color: white; }
+  .tag-fixed { background: #2a8f4f; }
+  .tag-partial { background: #b8860b; }
+  .tag-open { background: #b23b3b; }
+  .tag-info { background: #4a5a75; }
+  .box { border: 1px solid #dbe1e8; border-radius: 6px; padding: 10px 14px; margin: 12px 0; background: #fafbfc; }
+  .box-warn { border-left: 4px solid #b8860b; background: #fff9ec; }
+  .box-fixed { border-left: 4px solid #2a8f4f; background: #f2faf5; }
+  .box-open { border-left: 4px solid #b23b3b; background: #fdf3f3; }
+  .num { font-family: "SF Mono", Consolas, monospace; color: #0d3b66; font-weight: 600; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .toc { background: #f4f7fa; border: 1px solid #dbe1e8; border-radius: 6px; padding: 14px 20px; }
+  .toc ol { padding-left: 20px; }
+  .toc a { color: #0d3b66; text-decoration: none; }
+  .section-break { page-break-before: always; }
+  .small { font-size: 9pt; color: #555; }
+  hr { border: none; border-top: 1px solid #dbe1e8; margin: 24px 0; }
+  footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #dbe1e8; font-size: 8.5pt; color: #888; }
+  img.fig { max-width: 100%; border: 1px solid #cfd8e3; border-radius: 4px; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<h1 class="doc-title">MANDOWN V6</h1>
+<p class="subtitle">Asymmetric-Posture Geometric Fix, Temporal Motion-Signature Confirmation &amp; Detection-Recovery — Implementation, Real-Image Validation &amp; Honest Findings<br>
+Prepared: September 2026 &nbsp;|&nbsp; Validated against: 7 real live-camera screenshots (no live feed available this round) + the 4 standing reference videos</p>
+
+<div class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#exec">Executive Summary</a></li>
+  <li><a href="#problem">Problem Restated: Two Independent Failure Modes</a></li>
+  <li><a href="#fixA">Fix Set A — Per-Side (Asymmetric-Aware) Geometric Features</a></li>
+  <li><a href="#fixB">Fix Set B — Motion-Signature Confirmation Path</a></li>
+  <li><a href="#fixC">Fix Set C — Detection-Recovery for Missed Poses</a></li>
+  <li><a href="#validation">Real-Image Validation Results (7 Screenshots)</a></li>
+  <li><a href="#regression">Regression Verification: The 4 Reference Videos</a></li>
+  <li><a href="#limitations">Honest Accounting: What Did and Did Not Close the Target Gap</a></li>
+  <li><a href="#files">Files Changed / Tests Added</a></li>
+  <li><a href="#next">Recommendations</a></li>
+</ol>
+</div>
+
+<h2 id="exec">1. Executive Summary</h2>
+<p>This round targeted two problems left open by the V5 report: (1A) a foreshortened-lying person whose limbs are posed
+<em>asymmetrically</em> (a raised knee, a raised arm, an arm tucked under the torso) still doesn't reliably confirm, because
+every existing angle feature averages left/right keypoints into one midpoint — an implicit symmetry assumption that
+breaks exactly for this posture; and (1B) the pose model itself sometimes produces no detection at all for a person
+already on the floor, undercounting a visibly-present fallen person.</p>
+<p>Three fix sets were implemented, all gated to be either provably monotonic with respect to every existing confirmed
+case, or purely additive/fallback-only, so the single most protected real regression case in this project
+(<code>M_D_2.mp4</code>) could not be made worse by construction. This report documents exactly what was built, what
+real measurement showed, and — matching this project's established discipline of recording negative results, not just
+successes — <strong>an important honest finding: the specific visibility-asymmetry mechanism Fix Set A targets does
+not actually explain the real §7.1 gap once re-measured against the real MediaPipe output for that exact frame</strong>.
+The fix is safe and kept (it cannot regress anything and may help other real cases), but it did not close the original
+target case on its own. Fix Set B (a temporal, not geometric, confirmation path) is the more promising path for that
+specific gap, but by its own nature can only be validated on real video with genuine motion — untestable on the static
+images available this round.</p>
+<p>A serious-looking regression was also investigated this round: a fresh run of <code>M_D_2.mp4</code> today produced
+<strong>0 confirmed falls</strong> instead of the previously-reported 1. After a careful investigation (§7), this was
+traced to this video's own already-documented tracker-fragmentation behavior (75-80 track IDs for one physically
+continuous person), not to anything in this round's code changes — but it means the literal "exact-match" re-verification
+requested could not be produced this round, and this is reported transparently rather than papered over.</p>
+
+<h2 id="problem">2. Problem Restated: Two Independent Failure Modes</h2>
+<h3>2.1 (1A) Asymmetric foreshortened-lying postures</h3>
+<p>Every angle feature in the pre-V6 pipeline (<code>torso_angle</code>, <code>hip_angle</code>, the 3D-lifted
+<code>torso_angle_3d</code>) is computed from the <em>midpoint</em> of the left/right shoulder or hip pair, or the
+midpoint-derived 3D center MediaPipe infers. Averaging two limbs into one number is an implicit symmetry assumption.
+Foreshortened lying is exactly the case where that assumption breaks: one limb reads unambiguously "lying," the other
+reads "bent/raised," and the average sits in the ambiguous middle where nothing confirms — documented in the V5 report
+as the open §7.1 case (a person lying on their back with one knee raised): <code>torso_angle_3d=0.319</code> (below the
+0.55 floor), <code>down_score=0.454</code> (below the 0.65 floor), <code>floor_proximity=0.552</code> (below the 0.70
+floor).</p>
+<h3>2.2 (1B) The pose model itself sometimes fails to produce a detection at all</h3>
+<p>YOLO-pose, like nearly every pose model, is trained overwhelmingly on upright/walking/sports imagery. Prone,
+floor-level, foreshortened bodies are underrepresented in that distribution, so both detection confidence and keypoint
+quality degrade on exactly the frames MANDOWN most needs to see clearly — a data-distribution problem in the frozen
+model, worked around at inference time (not fixed by retuning fusion thresholds, and not by retraining).</p>
+
+<h2 id="fixA" class="section-break">3. Fix Set A — Per-Side (Asymmetric-Aware) Geometric Features</h2>
+
+<h3>3.1 §2.1 — Per-leg <code>leg_extension_ratio</code></h3>
+<p>Investigation found this selection rule was <strong>already implemented</strong>, independently, in an earlier
+engineering round: <code>ExtendedFeatureExtractor._leg_extension_ratio</code> computes each leg's hip→knee→ankle
+extension ratio separately and only includes a leg whose three keypoints are all confidently visible; when exactly one
+leg qualifies, that leg's ratio is used alone (never blended with a low-confidence value); when neither qualifies, it
+returns a neutral "no bend evidence" default rather than fabricating one. This is functionally identical to the V6
+spec's requested selection rule. New tests (<code>TestLegExtensionRatioPerSideSelection</code>, in
+<code>tests/test_extended_features.py</code>) now assert this exact behavior explicitly, closing the gap between "this
+happens to already work" and "this is verified to work."</p>
+<p>No threshold value was changed here: the spec's suggested τ_vis=0.5 (vs. the existing 0.3) was deliberately
+<strong>not</strong> adopted, since the spec's own guidance explicitly warns against tuning this in isolation from a
+large real keypoint-confidence dataset, which this round did not have (no live feed).</p>
+
+<h3>3.2 §2.2 — Per-side <code>torso_angle_3d</code>, provably monotonic via <code>max()</code></h3>
+<p>Implemented in <code>src/pose_3d.py</code>. When one side's shoulder+hip MediaPipe landmarks are confidently more
+visible than the other's by more than <code>Pose3DConfig.torso3d_asymmetry_threshold</code> (0.3, a design margin — the
+spec's own suggested starting point), that side's <em>own</em> shoulder→hip vector is computed as a second candidate
+angle, and the <strong>larger</strong> of it vs. the existing bilateral (midpoint) reading is kept:</p>
+<pre>torso_angle_3d = max(bilateral_angle, single_side_angle)   # only when |w_L - w_R| > threshold
+                                                             # else: bilateral_angle, byte-identical to pre-V6</pre>
+<div class="box box-fixed">
+<strong>Why this is provably monotonic:</strong> a symmetric-visibility body (the common case, including every existing
+confirmed real fall in this repo) takes the unchanged bilateral-only path — zero behavior change. An asymmetric-visibility
+body can only have its angle <em>raised</em> relative to the pre-V6 value, never lowered, since <code>max()</code> never
+selects a smaller number over the one that was already there. This means the fix cannot regress any existing confirmed
+case by mathematical construction, independent of any live-camera re-verification.
+</div>
+<p>Verified with 5 new unit tests (<code>TestPose3DPerSideMonotonicMax</code>, <code>tests/test_pose_3d.py</code>) using
+a mocked MediaPipe result for precise control: symmetric visibility stays byte-identical to bilateral; an asymmetric
+fixture modeled on the real §7.1 corruption mechanism (a raised knee pulling one hip toward the shoulder) shows the
+single-side reading correctly wins via <code>max()</code>; a visibility gap below the threshold stays bilateral (no
+over-triggering on ordinary noise); a genuinely upright person with incidental visibility asymmetry stays correctly low
+(both readings are low, so <code>max()</code> changes nothing).</p>
+
+<h4>3.2.1 Real-image re-measurement — the honest finding</h4>
+<p>Re-running this exact fix against the real §7.1 frame (2026-09-14 18:19:32 screenshot) to see whether it actually
+raises <code>torso_angle_3d</code> for the real target case produced a genuinely important, unglamorous result:</p>
+<pre>L_SHOULDER visibility=0.999   L_HIP visibility=0.998
+R_SHOULDER visibility=0.999   R_HIP visibility=0.997
+w_L = 0.997   w_R = 0.997   |w_L - w_R| = 0.0002   (threshold: 0.3 -- NOT crossed)
+=> per-side path never activates; result stays bilateral-only: torso_angle_3d = 0.236</pre>
+<div class="box box-warn">
+<strong>MediaPipe is confidently wrong here, not uncertain.</strong> The hypothesis behind Fix 2.2 was that a raised
+knee drags visibility DOWN on the corrupted side, creating a detectable asymmetry. On this real frame (and on 2 other
+real lying postures re-measured the same way — the "arm raised" and "symmetric lying" screenshots, see §6), MediaPipe
+reports <strong>near-identical, high visibility on both sides</strong> even though its inferred 3D position is
+apparently still off for this posture. The corruption here is a genuine 3D-pose-inference inaccuracy for an
+underrepresented posture, not a visibility-detectable asymmetry — so the specific mechanism this fix targets does not
+explain, and does not close, the original real gap it was written for.
+</div>
+<p>The fix is kept anyway: it is safe (provably monotonic, independently unit-tested), free (near-zero extra cost — the
+extra angle computation is a few vector operations, not a second model inference), and may still help a different real
+scenario where visibility genuinely does diverge (e.g., a limb entirely outside the frame or heavily occluded by
+furniture, rather than merely differently posed). It is reported as "implemented and safe, did not close the target
+case" rather than overclaimed — the same honesty standard the V4.7/V4.9 investigations in the V5 report were held to.</p>
+
+<h3>3.3 §2.1's <code>hip_angle</code> per-side replacement — deliberately NOT implemented this round</h3>
+<p>The spec also requested a per-side, asymmetric-aware <code>hip_angle</code>. This was evaluated and <strong>not
+implemented</strong>, for a specific, provable safety reason rather than a time constraint: <code>hip_angle</code>
+currently feeds a <em>subtractive</em> exclusion gate — the V4.9 <code>hip_torso_mismatch</code> signal
+(<code>mismatch = torso_angle - hip_angle</code>) that protects against the real deep-bend false positive documented in
+the V5 report. Raising <code>hip_angle</code> for an asymmetric case would <em>shrink</em> that mismatch, making the
+bend-exclusion signature <em>less</em> likely to fire — i.e., a change that helps one real case could simultaneously
+weaken the protection for a different, already-fixed real false positive. Unlike <code>torso_angle_3d</code> (where
+"higher is always more like lying, so raising it is always the safe direction"), <code>hip_angle</code> sits on both
+sides of this tension at once, so no single <code>max()</code>/<code>min()</code> trick makes it safe in both directions
+simultaneously without a live-footage re-verification pass this round did not have access to. Deferred, and flagged as
+the top open item in §9 — this mirrors the V5 report's own precedent of reverting/deferring a change the moment its
+safety could not be proven, rather than shipping something merely "probably fine."</p>
+
+<h2 id="fixB" class="section-break">4. Fix Set B — Motion-Signature Confirmation Path</h2>
+
+<p>A purely <strong>temporal</strong>, not geometric, confirmation path: <code>collapse_then_stillness</code>, computed
+per track in <code>MandownTrackContext</code> and consumed as a new, additive rule 8 in <code>EvidenceFusion</code>. A
+hard 0/1 gate (never blended), True only when <strong>all</strong> of:</p>
+<ol>
+  <li>a genuine <code>body_height_norm</code> collapse of at least <code>theta_spike</code> within a 1-second window,
+  somewhere in the last <code>t_lookback_seconds + t_still_seconds</code>;</li>
+  <li>continuous stillness (per-frame keypoint motion energy below <code>theta_still</code>) held from that spike
+  through to now, for at least <code>t_still_seconds</code>;</li>
+  <li>a real, currently-elevated <code>height_collapse_cue</code> (reuses the same calibrated floor established in
+  V4.2-V4.9);</li>
+  <li>the track is not currently inside its own confidently-standing baseline.</li>
+</ol>
+<pre>if collapse_then_stillness and pose_quality >= pose_quality_floor:
+    fusion_score = max(fusion_score, confirmed_mandown_threshold)   # same style as V4.10's direct down_score path</pre>
+<p>This is additive by construction — it can only ever raise the fusion score for a track already backed by a real,
+sustained height collapse; it cannot fire for, and cannot suppress, anything else.</p>
+
+<h3>4.1 Thresholds measured from real footage, not guessed</h3>
+<p>Per the spec's own instruction, <code>theta_spike</code>/<code>theta_still</code> were measured from this repo's 2
+real single-fall videos via a dedicated diagnostic pass (not a live camera — these are pre-existing repo assets):</p>
+<table>
+<tr><th>Video / track</th><th>1s collapse velocity at real fall onset</th><th>Post-onset "settled" motion-energy (p95)</th></tr>
+<tr><td><code>mandown_2.mp4</code> track 1</td><td class="num">0.560</td><td class="num">0.012</td></tr>
+<tr><td><code>man_down_c08.mp4</code> track 1</td><td class="num">0.137</td><td class="num">0.053</td></tr>
+</table>
+<p><code>theta_spike=0.12</code> sits just below the weaker of the two real onsets; <code>theta_still=0.06</code> sits
+just above the higher of the two real "settled" readings (real footage is never perfectly motionless — ongoing minor
+jitter/breathing/pose-estimation noise is normal, even while genuinely lying still). Explicitly labeled in-code and here
+as a <strong>conservative first pass from a small (n=2) real sample</strong>, not a fully-tuned production threshold —
+set with margin toward not falsely triggering, since every real confirmed case in this repo already confirms through an
+existing path independent of this rule ever firing.</p>
+
+<h3>4.2 Unit-tested negative controls (per spec §3.4)</h3>
+<table>
+<tr><th>Negative control</th><th>Which condition fails</th><th>Result</th></tr>
+<tr><td>Deliberate, gradual sit-down (height declines slowly over 10s, not sharply within 1s)</td><td>(a) no genuine spike</td><td class="tag tag-fixed">Correctly rejected</td></tr>
+<tr><td>Chair scoot-back (height never really collapses)</td><td>(c) height_collapse_cue stays low</td><td class="tag tag-fixed">Correctly rejected</td></tr>
+<tr><td>Bending to help someone, then standing back up (motion resumes 2s after the spike, well before the 5s stillness window completes)</td><td>(b) stillness doesn't sustain</td><td class="tag tag-fixed">Correctly rejected</td></tr>
+<tr><td>Track currently reading confidently upright</td><td>(d)</td><td class="tag tag-fixed">Correctly rejected</td></tr>
+<tr><td>Freshly-created track, no history</td><td>insufficient data</td><td class="tag tag-fixed">Correctly rejected, no crash</td></tr>
+</table>
+
+<h3>4.3 What could and could not be validated without live video</h3>
+<p>Per the spec's own explicit acknowledgment, the TRUE-POSITIVE path is inherently temporal and cannot be exercised on
+a static image. What <em>was</em> run: feeding one of the real still images repeatedly as a synthetic zero-motion,
+zero-height-change 200-frame "sequence" —</p>
+<pre>PASS: collapse_then_stillness stayed False for 200 static-repeat frames (no genuine spike ever occurred)</pre>
+<p>This proves the gate does not false-trigger on a static/frozen feed, but is <strong>not</strong> a substitute for
+validating the true-positive path on a real fall clip — that remains deferred to when live-feed testing resumes, exactly
+as the spec anticipated.</p>
+
+<h2 id="fixC" class="section-break">5. Fix Set C — Detection-Recovery for Missed Poses</h2>
+
+<h3>5.1 §4.1 — Narrow-range rotation search</h3>
+<p>Implemented in <code>src/detector.py</code> as <code>PersonDetector.redetect_in_roi_with_rotation</code>, run
+<strong>only</strong> when the existing plain straight-crop re-acquisition (<code>redetect_in_roi</code>, unchanged)
+has already failed to find a previously-tracked person at all — i.e., strictly rarer than the spec's own proposal
+(which would try rotation alongside the plain retry on every trigger). Tries {prev_best-15°, prev_best, prev_best+15°}
+on the same padded ROI using the <em>same frozen model</em> (no retraining), keeps whichever candidate gives the
+highest mean keypoint confidence, and decays the remembered best angle back toward 0 (×0.9/frame) when not
+re-triggered.</p>
+<h4>Mechanism-level validation (real image)</h4>
+<p>Both real §7.1-adjacent fixtures were already confidently, correctly detected in their original frames (det.
+confidence 0.827 and 0.909) — i.e., Problem 1B does not manifest in these exact two frames, so no "before/after
+recovery" could be demonstrated on them specifically (an honest limitation, reported rather than manufactured). A
+direct mechanism check was run instead: the real standing person from the arm-raised screenshot was synthetically
+rotated by known amounts and re-detected:</p>
+<table>
+<tr><th>Synthetic tilt</th><th>Plain straight-crop mean keypoint conf.</th><th>Rotation-search mean keypoint conf.</th></tr>
+<tr><td>15° (within the ±15° search window)</td><td class="num">0.774</td><td class="num">0.811 (won at +15°)</td></tr>
+<tr><td>45° (exceeds the narrow search window)</td><td class="num">0.826*</td><td class="num">0.826 (won at 0° — correctly could not reach 45°)</td></tr>
+</table>
+<p class="small">*YOLO-pose was itself fairly robust to the 45° case here on this particular crop (padding_ratio=0.6
+retains enough context) — a real, modest improvement was measured within the search window, and the boundary case
+correctly shows the narrow-search design limiting itself rather than silently failing.</p>
+
+<h3>5.2 §4.2 — Confidence-decayed keypoint carry-forward</h3>
+<p>Implemented as <code>MandownTrackContext.extrapolated_keypoints</code>: constant-velocity extrapolation from the
+track's last 2 confident raw keypoint arrays, with confidence decaying by <code>confidence_decay_factor</code>
+(0.85) per frame since the last real detection, capped at <code>t_gap_max_seconds</code> (3.0s) of continuous
+non-detection before the track is dropped for real. Wired as a last-resort fallback in
+<code>_reacquire_lost_tracks</code> — only when <em>both</em> the plain retry and the rotation search have failed —
+and fed into <code>frame_result.persons</code> exactly like a real detection, so the existing
+<code>pose_quality_score</code> discount handles decaying trust with zero new fusion-side code, per the spec's own
+composability goal.</p>
+<div class="box box-warn">
+As the spec itself anticipates, this path is <strong>untestable on a single static image</strong> (it requires an
+actual multi-frame detection gap). It is unit-tested at the mechanism level (constant-velocity extrapolation math,
+confidence decay, insufficient-history graceful failure — <code>TestExtrapolatedKeypoints</code>), but its real-world
+behavior on an actual brief occlusion is deferred to live-feed testing, exactly as instructed.
+</div>
+
+<h2 id="validation" class="section-break">6. Real-Image Validation Results (7 Screenshots)</h2>
+<p>The 7 screenshots referenced in the task (found on disk, matching every timestamp given) were run through the real
+single-frame pipeline (YOLO-pose → <code>ExtendedFeatureExtractor</code> → <code>Pose3DEstimator</code> →
+<code>FeatureMandownScorer</code> → <code>EvidenceFusion</code>), with <strong>no temporal history and no LSTM</strong>
+(a single isolated frame has neither) and, since a desktop screenshot's window-chrome offset cannot be reliably mapped
+back onto this camera's saved 1280×720 perspective calibration, a <strong>same-image height reference</strong> (the
+median bounding-box height of the other confidently-standing people visible in the same screenshot) substituting for
+the real per-camera 2D calibration used in production. This is explicitly a cruder, single-frame approximation — labeled
+as such here and in the diagnostic script — not the real calibrated pipeline.</p>
+
+<h3>6.1 Positive fixtures</h3>
+<table>
+<tr><th>Frame</th><th>Person</th><th>down_score</th><th>floor_prox</th><th>torso_angle_3d</th><th>height_collapse_cue</th><th>fusion / tier</th></tr>
+<tr><td>2026-09-14 18:19:32 (prone, arms under torso, one knee bent)</td><td>fallen person</td><td class="num">0.068</td><td class="num">0.164</td><td class="num">0.236</td><td class="num">0.148</td><td class="num">0.026 / NORMAL</td></tr>
+<tr><td>2026-09-03 17:49:50 (arm raised toward ceiling)</td><td>fallen person</td><td class="num">0.121</td><td class="num">0.341</td><td class="num">0.494</td><td class="num">0.356</td><td class="num">0.051 / NORMAL</td></tr>
+</table>
+<p><strong>Neither reached a confirm-eligible instantaneous score.</strong> This is consistent with §3.2.1's finding
+(the per-side 3D fix doesn't engage here) and with the fact that <code>persistence_score=0.0</code> on a single
+isolated frame — the geometric-alone confirm path requires sustained persistence (0.65+), which no single frame can
+ever provide by definition. The one path that does <em>not</em> require persistence — a very high <code>down_score</code>
+alone (≥0.65) — was not reached on either real frame under this crude same-image calibration. This is an honest,
+negative instantaneous-validation result, reported plainly rather than reframed as a success.</p>
+
+<h3>6.2 Negative-control fixtures (must NOT confirm)</h3>
+<table>
+<tr><th>Frame</th><th># standing/walking people checked</th><th>Highest fusion score among them</th><th>Result</th></tr>
+<tr><td>2026-09-03 17:58:39 (standing + walking)</td><td>1</td><td class="num">0.028</td><td class="tag tag-fixed">Correctly NORMAL</td></tr>
+<tr><td>2026-09-03 17:58:46 (standing)</td><td>2</td><td class="num">0.152</td><td class="tag tag-fixed">Correctly NORMAL</td></tr>
+<tr><td>2026-09-03 17:49:50 (bystander standing/bending over phone)</td><td>2</td><td class="num">0.184</td><td class="tag tag-fixed">Correctly NORMAL</td></tr>
+</table>
+<p>No new false positive was introduced among any standing/walking/bending person visible across all 7 images —
+consistent with the fact that every V6 change is either provably monotonic (Fix A/B) or fallback-only and re-acquisition
+-scoped (Fix C), none of which can manufacture evidence for a person who genuinely isn't down.</p>
+
+<h3>6.3 The two "not yet detected" symmetric-lying frames</h3>
+<p>Two further real frames (2026-09-03 17:31:36 and 17:32:51) show the same person lying symmetrically (arms folded at
+chest) on the floor near the bar counter, both reading <code>Falls: 0</code> in the live app at the time. Re-measured
+this round: <code>torso_angle_3d=0.596-0.638</code> (correctly, confidently reads as lying — MediaPipe itself is
+accurate for this particular symmetric posture), but <code>down_score</code>/<code>height_collapse_cue</code> stayed
+low without real calibration. A third frame minutes later (17:39:16), same person now in a more diagonal pose (one arm
+and leg extended away from the body), <strong>was</strong> already correctly detected by the live app at the time
+(<code>Falls: 2</code>) — consistent with the pre-V6 2D alternate-grounding path already handling genuinely diagonal
+lying, while the more foreshortened/symmetric earlier poses were the harder case this round targeted.</p>
+
+<h2 id="regression" class="section-break">7. Regression Verification: The 4 Reference Videos</h2>
+<p>Full test suite: <strong>266 passed, 0 failed</strong> (up from V5's 250 — 16 new tests added this round, zero
+regressions in the existing suite). The real-video re-verification below was run today via the actual
+<code>FallDetectionPipeline</code> (not a diagnostic approximation), per the spec's explicit shippability gate.</p>
+
+<h3>7.1 Clean (lightly-fragmented) videos — exact or near-exact match</h3>
+<table>
+<tr><th>Video</th><th>V5-reported confidence</th><th>V6 re-run confidence</th><th>Persons tracked</th><th>Result</th></tr>
+<tr><td><code>mandown_2.mp4</code></td><td class="num">0.881</td><td class="num">0.881</td><td>3 (was 3)</td><td class="tag tag-fixed">Exact match</td></tr>
+<tr><td><code>man_down_c08.mp4</code></td><td class="num">0.841</td><td class="num">0.836</td><td>1 (was 1)</td><td class="tag tag-fixed">Near-exact (Δ0.005, within run-to-run GPU/tracker noise)</td></tr>
+<tr><td><code>man_down_zoomed_demo__2_.mp4</code></td><td class="num">0.867</td><td class="num">confirmed, 1/1</td><td>8 (was 9)</td><td class="tag tag-fixed">Confirmed, zero new false positives among the rest</td></tr>
+</table>
+
+<h3 class="section-break">7.2 <code>M_D_2.mp4</code> — the protected track: NOT reproduced this round</h3>
+<div class="box box-open">
+<strong>Two fresh, full runs of <code>M_D_2.mp4</code> today (with, and separately without, Fix Set C entirely
+disabled) both produced 0 confirmed MANDOWN events</strong>, versus the 1 confirmed event (confidence 0.831,
+down_score 0.813) documented in the V5 report. This is reported transparently, not minimized.</strong>
+</div>
+<h4>Investigation</h4>
+<ul>
+  <li><strong>Track fragmentation, not scoring failure:</strong> both runs show 75-80 total tracked persons for this
+  one video (vs. 1-8 for the other 3 reference videos) — consistent with this project's own pre-existing, already-documented
+  observation (<code>TrackBridgeConfig</code>'s own code comment: "one real validation video went from a handful of
+  tracks to 74 under current settings" — almost certainly this same video). At least 3 separate track fragments in
+  today's run individually reached genuinely strong MANDOWN-tier evidence at their peak frame (down_score 0.643-0.808,
+  fusion_score 0.79-0.828, <code>suggested_tier: "MANDOWN"</code>), but none individually sustained the 8 consecutive
+  confirming frames <code>StateMachineConfig</code> requires before the fragmentation split them apart again.</li>
+  <li><strong>Fix Set C ruled out:</strong> disabling rotation search and confidence-decayed carry-forward entirely
+  did not restore confirmation — if anything, the disabled run showed <em>more</em> fragmentation (80 tracks) than the
+  enabled one (75 tracks), the opposite of what a Fix-Set-C-caused regression would predict.</li>
+  <li><strong>Fix Set A/B ruled out mathematically:</strong> §3.2's per-side torso_angle_3d uses <code>max()</code> and
+  §4's collapse_then_stillness is a pure OR-additive rule — both are provably incapable of <em>lowering</em> any score
+  for any input, so neither can be the mechanism behind a track that used to confirm no longer doing so.</li>
+  <li><strong>Most likely explanation:</strong> inherent run-to-run non-determinism in the underlying YOLO/BoT-SORT
+  stack (unpinned CUDA op ordering is a well-known source of small run-to-run differences in deep learning inference),
+  compounding over a long, heavily-fragmented video (3718 frames) into a different track-ID split than whichever run
+  produced the V5 report's figures.</li>
+</ul>
+<p><strong>Conclusion, stated plainly:</strong> the literal "exact-match re-verification with zero regression" this
+report was asked to produce could not be achieved this round for this specific video, and no amount of re-running
+alone would prove it either way, since the system's fragmentation behavior for this video is not observed to be
+stable run-to-run even before considering any V6 change. The mathematical monotonicity of every V6 scoring change,
+combined with the clean exact/near-exact matches on the other 3 reference videos (which do not suffer this
+fragmentation), is the strongest evidence available this round that V6 itself did not cause this — but it is evidence,
+not proof, and is reported as an open item rather than a closed one. See §9 for the recommended next step.</p>
+
+<h2 id="limitations" class="section-break">8. Honest Accounting: What Did and Did Not Close the Target Gap</h2>
+<table>
+<tr><th>Item</th><th>Status</th><th>Note</th></tr>
+<tr><td>Fix Set A §2.1 (per-leg <code>leg_extension_ratio</code>)</td><td class="tag tag-fixed">Confirmed already correct</td><td>Pre-existing; now explicitly tested</td></tr>
+<tr><td>Fix Set A §2.2 (per-side <code>torso_angle_3d</code>)</td><td class="tag tag-partial">Implemented, safe, did not close §7.1</td><td>MediaPipe visibility stays symmetric even when its 3D inference is wrong for this posture</td></tr>
+<tr><td>Fix Set A §2.1 (per-side <code>hip_angle</code>)</td><td class="tag tag-open">Deliberately not implemented</td><td>Not provably safe against the V4.9 bend-exclusion gate without live re-verification</td></tr>
+<tr><td>Fix Set B (<code>collapse_then_stillness</code>)</td><td class="tag tag-partial">Implemented, thresholds measured, negative controls pass</td><td>True-positive path untestable without live video (by the spec's own admission)</td></tr>
+<tr><td>Fix Set C §4.1 (rotation search)</td><td class="tag tag-fixed">Implemented, mechanism validated (0.774→0.811)</td><td>Neither real target frame exhibited Problem 1B to demonstrate an end-to-end recovery</td></tr>
+<tr><td>Fix Set C §4.2 (confidence-decayed carry-forward)</td><td class="tag tag-partial">Implemented, unit-tested at the mechanism level</td><td>Untestable on a static image by construction</td></tr>
+<tr><td><code>M_D_2.mp4</code> exact-match regression gate</td><td class="tag tag-open">Not reproduced this round</td><td>Traced to pre-existing tracker fragmentation, not mathematically attributable to any V6 change — see §7.2</td></tr>
+<tr><td>§7.1's original real gap (bent-knee lying)</td><td class="tag tag-open">Still open</td><td>Remains the top item for live-feed re-testing — see §9</td></tr>
+</table>
+
+<h2 id="files" class="section-break">9. Files Changed / Tests Added</h2>
+<table>
+<tr><th>File</th><th>Change</th></tr>
+<tr><td><code>src/pose_3d.py</code></td><td>Per-side, monotonic-max <code>torso_angle_3d</code> (§3.2)</td></tr>
+<tr><td><code>src/mandown_track_context.py</code></td><td><code>collapse_then_stillness</code>, <code>extrapolated_keypoints</code>, height/motion-energy history tracking, rotation-search angle memory</td></tr>
+<tr><td><code>src/fusion.py</code></td><td>New additive rule 8 (<code>collapse_then_stillness</code>)</td></tr>
+<tr><td><code>src/detector.py</code></td><td><code>redetect_in_roi_with_rotation</code>, image rotate/unrotate helpers</td></tr>
+<tr><td><code>src/pipeline.py</code></td><td>Wires collapse_then_stillness into fusion; extends <code>_reacquire_lost_tracks</code> with the rotation-search and extrapolation fallbacks; threads raw keypoints into <code>ctx.update()</code></td></tr>
+<tr><td><code>src/config.py</code>, <code>configs/mandown_config.yaml</code></td><td>New <code>Pose3DConfig.torso3d_asymmetry_threshold</code>, <code>MotionSignatureConfig</code>, <code>RotationSearchConfig</code>, <code>DetectionRecoveryConfig</code>, each threshold commented with its real/measured/design-margin provenance</td></tr>
+<tr><td><code>tests/test_pose_3d.py</code></td><td>+5 tests: per-side monotonic-max behavior</td></tr>
+<tr><td><code>tests/test_fusion.py</code></td><td>+3 tests: rule 8 wiring</td></tr>
+<tr><td><code>tests/test_mandown_track_context.py</code></td><td>+8 tests: collapse_then_stillness (incl. all 3 spec negative controls) + extrapolation mechanism</td></tr>
+</table>
+<p class="small">Full suite: 266 passed, 0 failed (was 250 at the end of V5).</p>
+
+<h2 id="next" class="section-break">10. Recommendations</h2>
+<ol>
+  <li><strong>Highest priority, blocking full confidence in this round:</strong> re-run <code>M_D_2.mp4</code> a few
+  more times (with no code changes at all) to determine whether 0-confirmed is itself the more common outcome for this
+  video under current tracker settings, independent of V6 — this would mean the V5 report's own 1-confirmed result was
+  the fortunate run, not the reliable one, and the real fix needed is tracker-fragmentation robustness (loosening
+  <code>TrackBridgeConfig</code>'s IoU/recency further, or investigating why BoT-SORT loses this specific track so
+  often), not anything in this report.</li>
+  <li><strong>Live-feed re-test of Fix Set B</strong> against a real, deliberate fall in the bent-knee-lying posture —
+  the only way to validate the true-positive path of <code>collapse_then_stillness</code>, and the most promising
+  remaining avenue for closing §7.1's original gap given §3.2.1's finding that the visibility-asymmetry mechanism
+  doesn't explain it.</li>
+  <li><strong>Live-feed re-test of Fix Set C §4.2</strong> (confidence-decayed carry-forward) against an actual brief
+  occlusion — untestable on any static image by construction.</li>
+  <li>Revisit per-side <code>hip_angle</code> (§3.3) once live footage is available to directly re-verify it doesn't
+  reopen the V4.9 deep-bend false positive, the same discipline already applied to <code>torso_angle_3d</code>.</li>
+  <li>Continue this project's established validation discipline for any future change: real-measured thresholds over
+  guessed ones, explicit negative-control tests, and a full <code>M_D_2.mp4</code> re-run before considering any
+  scoring change complete — understanding now that this specific video's tracker fragmentation may need several
+  repeated runs, not one, to draw a reliable conclusion.</li>
+</ol>
+
+<footer>
+MANDOWN V6 Implementation Report — generated from real screenshot validation, unit tests, and full reference-video
+re-runs. Every numeric value quoted was measured directly against real footage, real screenshots, or this project's
+own automated test suite at the time of writing. Where a result could not be obtained or was inconclusive (the
+<code>M_D_2.mp4</code> exact-match gate, the true-positive paths of Fix Sets B and C §4.2), this is stated plainly
+rather than inferred or assumed.
+</footer>
+
+</body>
+</html>

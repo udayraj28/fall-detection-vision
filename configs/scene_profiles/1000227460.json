@@ -1,0 +1,35 @@
+{
+  "camera_id": "1000227460",
+  "frame_width": 2560,
+  "frame_height": 1440,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_left",
+  "perspective": {
+    "slope_h": 0.628918137809418,
+    "intercept_h": 192.60155870956018,
+    "slope_w": 0.3833395240473856,
+    "intercept_w": 11.761541599040356,
+    "r_squared": 0.8534610954423233,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 508.87351989746094,
+    "band_high": 1075.6895599365234,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 492.94068145751953,
+    "p25_height": 428.8191137313843,
+    "p75_height": 511.93576431274414,
+    "height_std": 44.556288448156955,
+    "median_width": 226.6990966796875,
+    "p25_width": 212.40328979492188,
+    "p75_width": 234.79583740234375,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

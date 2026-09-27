@@ -1,0 +1,35 @@
+{
+  "camera_id": "M_D_4",
+  "frame_width": 1280,
+  "frame_height": 682,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_right",
+  "perspective": {
+    "slope_h": 0.7562747124049066,
+    "intercept_h": 64.15496786380258,
+    "slope_w": 0.47065590269558716,
+    "intercept_w": 28.40198638244145,
+    "r_squared": 0.7529953676177142,
+    "num_samples": 70,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 343.86545753479004,
+    "band_high": 416.7581539154053,
+    "confidence": 1.0,
+    "num_samples": 70,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 375.65843653678894,
+    "p25_height": 354.39903926849365,
+    "p75_height": 396.5685362815857,
+    "height_std": 33.704139917040266,
+    "median_width": 226.863525390625,
+    "p25_width": 189.63047790527344,
+    "p75_width": 258.74786376953125,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

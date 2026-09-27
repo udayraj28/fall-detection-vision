@@ -1,0 +1,35 @@
+{
+  "camera_id": "IMG_6136",
+  "frame_width": 1920,
+  "frame_height": 1080,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_right",
+  "perspective": {
+    "slope_h": 0.7449839038042091,
+    "intercept_h": -81.58152268491027,
+    "slope_w": 0.5240188494729076,
+    "intercept_w": -152.03624405443213,
+    "r_squared": 0.518926122285772,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 649.3232116699219,
+    "band_high": 931.8147277832031,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 908.6628875732422,
+    "p25_height": 892.4903182983398,
+    "p75_height": 925.9607086181641,
+    "height_std": 28.39462358889321,
+    "median_width": 496.00787353515625,
+    "p25_width": 484.8343811035156,
+    "p75_width": 499.3382568359375,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

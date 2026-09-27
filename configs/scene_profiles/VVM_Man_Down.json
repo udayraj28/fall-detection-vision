@@ -1,0 +1,35 @@
+{
+  "camera_id": "VVM_Man_Down",
+  "frame_width": 1920,
+  "frame_height": 1080,
+  "calibration_confidence": 0.0,
+  "dominant_floor_direction": "unknown",
+  "perspective": {
+    "slope_h": 0.0,
+    "intercept_h": 0.0,
+    "slope_w": 0.0,
+    "intercept_w": 0.0,
+    "r_squared": 0.0,
+    "num_samples": 0,
+    "is_valid": false
+  },
+  "floor_region": {
+    "band_low": 0.0,
+    "band_high": 0.0,
+    "confidence": 0.0,
+    "num_samples": 0,
+    "is_valid": false
+  },
+  "size_stats": {
+    "sample_count": 0,
+    "median_height": null,
+    "p25_height": null,
+    "p75_height": null,
+    "height_std": null,
+    "median_width": null,
+    "p25_width": null,
+    "p75_width": null,
+    "calibration_confidence": 0.0,
+    "is_calibrated": false
+  }
+}

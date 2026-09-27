@@ -1,0 +1,37 @@
+{
+  "camera_id": "man_down_zoomed_demo__2",
+  "frame_width": 1600,
+  "frame_height": 904,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_left",
+  "perspective": {
+    "coef_h_x": -0.1513555795695207,
+    "coef_h_y": 0.29115807127681737,
+    "intercept_h": 330.2120648320279,
+    "coef_w_x": -0.11990253904001737,
+    "coef_w_y": 0.12097149490894465,
+    "intercept_w": 238.26943468595385,
+    "r_squared": 0.8950036358889926,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 177.25079536437988,
+    "band_high": 182.96768760681152,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 193.0948748588562,
+    "p25_height": 187.16286945343018,
+    "p75_height": 200.0400745868683,
+    "height_std": 11.062824581241546,
+    "median_width": 83.4830322265625,
+    "p25_width": 80.27276611328125,
+    "p75_width": 89.72055053710938,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

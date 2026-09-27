@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MANDOWN V5 — Vertical Fall Detection &amp; System Logic Reference</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.55;
+    font-size: 10.8pt;
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 20pt;
+    color: #0d3b66;
+    border-bottom: 3px solid #0d3b66;
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+  h1.doc-title { margin-bottom: 2px; }
+  .subtitle { color: #555; font-size: 11pt; margin-top: 0; margin-bottom: 18px; }
+  h2 {
+    font-size: 14.5pt;
+    color: #0d3b66;
+    border-bottom: 1.5px solid #b9d3e6;
+    padding-bottom: 4px;
+    margin-top: 30px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 12pt;
+    color: #144d75;
+    margin-top: 20px;
+    page-break-after: avoid;
+  }
+  h4 { font-size: 10.8pt; color: #333; margin-top: 14px; margin-bottom: 4px; }
+  p { margin: 8px 0; }
+  code, pre, .mono {
+    font-family: "SF Mono", Consolas, "Courier New", monospace;
+    font-size: 9.3pt;
+  }
+  code {
+    background: #f0f2f5;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #a3242c;
+  }
+  pre {
+    background: #f5f6f8;
+    border: 1px solid #dbe1e8;
+    border-left: 3px solid #0d3b66;
+    padding: 10px 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0 18px 0;
+    font-size: 9.6pt;
+  }
+  th, td {
+    border: 1px solid #cfd8e3;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #0d3b66; color: white; }
+  tr:nth-child(even) td { background: #f4f7fa; }
+  .tag {
+    display: inline-block;
+    font-size: 8.5pt;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 10px;
+    color: white;
+  }
+  .tag-fixed { background: #2a8f4f; }
+  .tag-reverted { background: #b23b3b; }
+  .tag-open { background: #b8860b; }
+  .tag-info { background: #4a5a75; }
+  .box {
+    border: 1px solid #dbe1e8;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0;
+    background: #fafbfc;
+  }
+  .box-warn { border-left: 4px solid #b8860b; background: #fff9ec; }
+  .box-fixed { border-left: 4px solid #2a8f4f; background: #f2faf5; }
+  .box-reverted { border-left: 4px solid #b23b3b; background: #fdf3f3; }
+  .num { font-family: "SF Mono", Consolas, monospace; color: #0d3b66; font-weight: 600; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .toc { background: #f4f7fa; border: 1px solid #dbe1e8; border-radius: 6px; padding: 14px 20px; }
+  .toc ol { padding-left: 20px; }
+  .toc a { color: #0d3b66; text-decoration: none; }
+  .section-break { page-break-before: always; }
+  .small { font-size: 9pt; color: #555; }
+  .center { text-align: center; }
+  hr { border: none; border-top: 1px solid #dbe1e8; margin: 24px 0; }
+  footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #dbe1e8; font-size: 8.5pt; color: #888; }
+</style>
+</head>
+<body>
+
+<h1 class="doc-title">MANDOWN V5</h1>
+<p class="subtitle">Vertical/Foreshortened Fall Detection — Full Investigation, Architecture Reference &amp; Real-World Validation<br>
+Prepared: September 2026 &nbsp;|&nbsp; Camera(s) under test: two live RTSP CCTV feeds (referred to as Camera 1 / Camera 2) plus four recorded reference videos</p>
+
+<div class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#exec">Executive Summary</a></li>
+  <li><a href="#arch">System Architecture Overview</a></li>
+  <li><a href="#logic">The MANDOWN Detection Logic, In Detail</a></li>
+  <li><a href="#problem">The Vertical/Foreshortened Fall Problem — Why It's Hard</a></li>
+  <li><a href="#history">Full Fix History (Chronological)</a></li>
+  <li><a href="#validation">Real-World Validation Results</a></li>
+  <li><a href="#limitations">Known Remaining Limitations (Honest Accounting)</a></li>
+  <li><a href="#config">Configuration Reference</a></li>
+  <li><a href="#files">Files Changed This Round</a></li>
+  <li><a href="#next">Recommendations / Next Steps</a></li>
+</ol>
+</div>
+
+<h2 id="exec">1. Executive Summary</h2>
+
+<p>This report documents the effort to make the MANDOWN (fall-detection) pipeline correctly recognize a person who has
+fallen <strong>toward or away from the camera</strong> — a "vertical" or "foreshortened" fall, where the body's long axis
+points roughly along the camera's own line of sight instead of across it. This orientation is a fundamentally hard case for
+any 2D-keypoint-based system: a body lying flat toward the camera and a body standing upright both project to a similar
+narrow, vertical shape in the 2D image, so any feature computed purely from 2D pixel angles is structurally blind to the
+difference.</p>
+
+<p>Over this engineering round, the pipeline gained two new structural capabilities that did not exist before:</p>
+<ul>
+  <li><strong>A proper 2D (row + column) ground-plane perspective calibration</strong>, replacing a 1-D (row-only) fit, so
+  expected body size is compared against the right expectation for a person's actual position in frame, not just their
+  vertical position.</li>
+  <li><strong>Monocular 2D→3D pose lifting</strong> (via Google's MediaPipe Pose Landmarker), giving the system a real,
+  camera-orientation-independent estimate of body tilt — something no 2D-only feature can provide by construction.</li>
+</ul>
+
+<p>Alongside these, seven distinct real false positives and false negatives were found through live RTSP testing (not
+synthetic data) and fixed at the root, with two more attempted fixes found unsafe and reverted before shipping once real
+regression testing caught the problem. The system's most safety-critical historical regression point — a specific real
+recorded fall in a validation video — was re-protected and re-verified after every change in this round.</p>
+
+<p>As of this report, the vertical-fall case is <strong>substantially improved and confirmed working for several real
+tested postures</strong> (see §6), but <strong>one further real posture variant (lying with one knee raised) has been found
+still unconfirmed</strong> and remains open — see §7 for the exact numbers and §10 for the recommended next step.</p>
+
+<h2 id="arch">2. System Architecture Overview</h2>
+
+<p>The pipeline is a chain of independent stages. Each stage's output feeds the next; no stage is allowed to silently
+fabricate a value it cannot support with real evidence — this "never fabricate, prefer honest neutral defaults" discipline
+appears repeatedly through the codebase and is treated as a hard design rule.</p>
+
+<pre>Video frame (RTSP / file)
+      │
+      ▼
+┌─────────────────────────┐
+│ YOLO11-pose detector     │  → per-person bounding box + 17 COCO keypoints (x, y, confidence)
+│ + BoT-SORT tracker       │  → a stable track_id per physical person across frames
+└─────────────────────────┘
+      │
+      ├────────────────────────────────────────────────────────┐
+      ▼                                                          ▼
+┌─────────────────────────┐                         ┌─────────────────────────────┐
+│ Base FeatureExtractor    │                         │ ExtendedFeatureExtractor      │
+│ (5 features, UNCHANGED   │                         │ (torso_angle, hip_angle,      │
+│  since project start)    │                         │  body_axis_angle, leg         │
+│                          │                         │  extension, body_height_norm, │
+│  → feeds the pretrained  │                         │  torso_angle_3d, ...)         │
+│    30-frame LSTM as-is   │                         └─────────────────────────────┘
+└─────────────────────────┘                                       │
+      │                                                            ▼
+      ▼                                            ┌─────────────────────────────┐
+┌─────────────────────────┐                         │ FeatureMandownScorer          │
+│ 5-feature LSTM           │                         │ (down_score, floor_proximity, │
+│ (models/fall_detector.py,│                         │  kneeling_penalty, height_    │
+│  best.pth checkpoint)    │                         │  collapse_cue, persistence,   │
+│  → lstm_mandown_prob     │                         │  pose_quality, fall_motion)   │
+└─────────────────────────┘                         └─────────────────────────────┘
+      │                                                            │
+      └───────────────────────┬────────────────────────────────────┘
+                               ▼
+                  ┌─────────────────────────────┐
+                  │ EvidenceFusion                │  → fusion_score, suggested_tier
+                  │ (weighted combination + a     │     (NORMAL / POSSIBLE_MANDOWN / MANDOWN)
+                  │  set of override/cap rules)   │
+                  └─────────────────────────────┘
+                               │
+                               ▼
+                  ┌─────────────────────────────┐
+                  │ TrackStateMachine              │  → per-track hysteresis:
+                  │ (per track_id, sticky states) │     needs N consecutive "up" frames
+                  └─────────────────────────────┘     to confirm, M consecutive
+                               │                        "normal" frames to recover
+                               ▼
+                  ┌─────────────────────────────┐
+                  │ FallDetectionPipeline          │  → drawing, banners, event dedup,
+                  │ (src/pipeline.py)              │     multi-person screenshots, JSON log
+                  └─────────────────────────────┘
+</pre>
+
+<p>Two camera-calibration subsystems run alongside this, continuously refining themselves from real observed people
+(never from a hard-coded assumption about the camera):</p>
+<ul>
+  <li><strong>SceneProfileBuilder</strong> (<code>src/scene_profile.py</code>) — learns, from many confidently-standing
+  people observed over time, how a person's expected pixel height/width varies across the image, and where on-screen the
+  floor actually is.</li>
+  <li><strong>RollingPersonSizeStats</strong> — a simpler, position-agnostic fallback used only until the position-aware
+  fit above has enough samples.</li>
+</ul>
+
+<h2 id="logic">3. The MANDOWN Detection Logic, In Detail</h2>
+
+<h3>3.1 Base features (LSTM input) — untouched by design</h3>
+<p>The original 5-feature LSTM classifier (<code>body_angle</code>, <code>cog_height</code>,
+<code>vertical_velocity</code>, <code>bbox_aspect_ratio</code>, <code>keypoint_confidence</code>) and its trained checkpoint
+have been treated as a hard constraint throughout this and prior engineering rounds: never retrained, never given a
+different input contract. Every fix described in this report works entirely in a deterministic geometric layer built
+<em>on top of</em> the LSTM, so the LSTM's ~97-98% test-set accuracy on its original task is never put at risk. The LSTM's
+output (<code>lstm_mandown_prob</code>) is treated as one supporting opinion among several, not a gate — this was a
+deliberate decision from the V3 engineering round, since an already-lying person with a cold (not-yet-filled) or simply
+wrong LSTM buffer must still be detectable from geometry alone.</p>
+
+<h3>3.2 Extended geometric features</h3>
+<p>Computed independently, once per person per frame, from the same 17 keypoints:</p>
+<table>
+<tr><th>Feature</th><th>Meaning</th></tr>
+<tr><td><code>torso_angle</code></td><td>Angle of the shoulder-midpoint→hip-midpoint line from vertical, 0 (vertical) to 1 (horizontal). Generalizes correctly to any 2D rotation direction.</td></tr>
+<tr><td><code>hip_angle</code></td><td>Same idea, for the hip-midpoint→knee-midpoint line. Corrupted by knee bend, so used carefully (see §5.7).</td></tr>
+<tr><td><code>body_axis_angle</code></td><td>Long-baseline head→ankle-midpoint axis angle. Corroborates <code>torso_angle</code> only when the torso already shows non-trivial lean (agreement-gated, never a blind override).</td></tr>
+<tr><td><code>leg_extension_ratio</code></td><td>How straight the leg is (hip-knee-ankle path length vs. direct hip-ankle distance). Low = bent knee.</td></tr>
+<tr><td><code>body_height_norm</code></td><td>Observed bounding-box height ÷ this camera's calibrated expected standing height at this exact image position. ~1.0 = normal, well below 1.0 = shorter than a standing person should be here.</td></tr>
+<tr><td><code>cog_height</code></td><td>Normalized hip height in the frame (0 = top, 1 = bottom) — the basis for the self-relative "hip drop" signal (§5.3).</td></tr>
+<tr><td><code>torso_angle_3d</code> <span class="tag tag-info">NEW this round</span></td><td>Angle between the real (lifted) 3D shoulder→hip vector and true vertical. See §5.8.</td></tr>
+</table>
+
+<h3>3.3 FeatureMandownScorer — deterministic geometric scoring</h3>
+<p>Combines the extended features into several independent 0–1 scores:</p>
+<ul>
+  <li><strong><code>down_score</code></strong> — the primary "is this posture down" signal: a blend of body shape
+    (bounding-box aspect ratio), a torso-only orientation cue (a boundary sigmoid past ~36° from vertical, not a linear
+    ramp to 90°), and a calibrated height-collapse cue, each contributing 40/40/20% before an agreement-gated
+    corroboration boost.</li>
+  <li><strong><code>floor_proximity_score</code></strong> — head-to-knee vertical span collapsing, corroborated by the
+    same orientation and height-collapse cues.</li>
+  <li><strong><code>kneeling_penalty</code></strong> — a multiplicative gate (0 = no suppression, 1 = full suppression)
+    applied to both scores above, specifically to stop kneeling/sitting/crouching (bent-leg) postures and — after this
+    round's fixes — several other "this looks down but isn't actually lying" postures from registering as a fall.</li>
+  <li><strong><code>height_collapse_cue</code></strong> — orientation-independent: is the observed body shorter than this
+    camera's calibrated expectation for a standing person at this row/column? Exposed separately because it is the one
+    signal that does not depend on angle at all.</li>
+  <li><strong><code>persistence_score</code></strong> — fraction of the recent window reading consistently "down".</li>
+  <li><strong><code>fall_motion_score</code></strong> — a recent spike in downward velocity/angle-change, supporting
+    evidence only (never required).</li>
+  <li><strong><code>pose_quality_score</code></strong> — mean keypoint confidence, used to discount (never zero out)
+    confidence from an unreliable skeleton.</li>
+</ul>
+
+<h3>3.4 EvidenceFusion — combining LSTM + geometry</h3>
+<p>A transparent, weighted rule-based combiner (not a second learned model, by design, so behavior stays debuggable).
+The weighted average of <code>lstm_mandown_prob</code> / <code>feature_confidence</code> / <code>persistence_score</code>
+can be overridden upward by several independent rules, each closing a specific real gap found in production testing:</p>
+<ol>
+  <li>A single very strong signal (LSTM <em>or</em> geometry) is sufficient on its own — recall stays high without
+  requiring both sources to agree.</li>
+  <li><strong>Geometric-alone confirm</strong>: strong, persistent geometric evidence can fully confirm MANDOWN with zero
+  LSTM help — this is what lets an already-lying person with a cold/wrong LSTM still be caught.</li>
+  <li><strong>LSTM-alone safeguard</strong> (mirror-image of #2): a confident LSTM, sustained over many frames, cannot
+  confirm MANDOWN with literally no geometric grounding at all.</li>
+  <li><strong>Moderate-down-score safeguard</strong>: a confident-but-wrong LSTM cannot ride a merely moderate
+  (bend/sit-level) <code>down_score</code> all the way to MANDOWN.</li>
+  <li><strong>Alternate grounding path</strong> (2D): for a foreshortened fall, <code>floor_proximity_score</code> +
+  <code>height_collapse_cue</code> + <code>pose_quality</code> can substitute for a high <code>down_score</code> — <em>only</em>
+  when <code>torso_angle</code> is confirmed near-zero (i.e., genuinely blind, not just unevidenced).</li>
+  <li><strong>3D grounding path</strong> <span class="tag tag-info">NEW this round</span>: a confident
+  <code>torso_angle_3d</code> reading of genuine lying, corroborated by <code>height_collapse_cue</code>, can also
+  substitute — see §5.8-5.9.</li>
+  <li><strong>Direct down_score confirm</strong> <span class="tag tag-info">NEW this round</span>: when
+  <code>down_score</code> alone is already very strong and persistence is sustained, the fusion score is guaranteed to
+  reach the confirm threshold directly, rather than only indirectly through a blend that can dilute it below the
+  threshold on individual frames — see §5.10.</li>
+</ol>
+
+<h3>3.5 TrackStateMachine — temporal hysteresis</h3>
+<p>Per track_id: <code>NORMAL → POSSIBLE_MANDOWN</code> after a few consecutive "up" frames, then
+<code>→ MANDOWN</code> after several more consecutive "up" frames (POSSIBLE_MANDOWN and MANDOWN count identically toward
+this streak). Recovery to <code>NORMAL</code> requires many consecutive genuinely-normal frames — a single flicker never
+clears a real alert. A short detection gap does not reset progress; a long one does.</p>
+
+<h2 id="problem" class="section-break">4. The Vertical/Foreshortened Fall Problem — Why It's Hard</h2>
+
+<p>Every angle-based feature above (<code>torso_angle</code>, <code>hip_angle</code>, <code>body_axis_angle</code>) is
+computed from the 2D projection of keypoints onto the image plane. When a person's body axis points toward or away from
+the camera — lying with their head or feet pointed roughly at the lens — their shoulders and hips project to nearly the
+<em>same</em> (x, y) location, exactly as they would for someone standing upright and facing/facing-away-from the camera.
+There is no lateral spread to measure in either case. This is not a bug in how the angle is computed (the formula itself,
+<code>atan2(|dx|, |dy|)</code>, is mathematically correct for any 2D rotation) — it is a genuine information loss inherent
+to a single 2D projection. No amount of retuning a 2D-only formula can fix it, because the information needed (depth) was
+never captured by that formula's inputs in the first place.</p>
+
+<div class="box box-warn">
+<strong>The practical consequence, observed on real footage this round:</strong> a person lying flat on the ground with
+their body pointed at the camera showed <code>torso_angle ≈ 0.02–0.22</code> — a reading indistinguishable from a
+standing person — while every other geometric signal (<code>down_score</code>, <code>height_collapse_cue</code>) was left
+to do all the work, and in several real postures, still weren't quite enough on their own under the pipeline's
+established, deliberately conservative thresholds.
+</div>
+
+<h2 id="history" class="section-break">5. Full Fix History (Chronological)</h2>
+<p class="small">Each entry names the real trigger (never a hypothetical), the root cause, the fix, and its validated
+outcome. Reverted attempts are kept in the history rather than erased, matching this project's documentation discipline —
+knowing what was tried and why it failed is as valuable as knowing what worked.</p>
+
+<h3>5.1 V4.2 — Height-collapse cue introduced <span class="tag tag-fixed">Kept</span></h3>
+<p>Added <code>height_collapse_cue</code>: is the observed bounding box shorter than expected for a standing person here?
+Driven purely by <code>body_height_norm</code>, never by any angle — the first orientation-independent signal in the
+system. Exposed as a corroboration source for <code>down_score</code>/<code>floor_proximity_score</code> and as an
+alternate grounding path in fusion.</p>
+
+<h3>5.2 V4.3 — Floor-region-based hip check <span class="tag tag-reverted">Reverted</span></h3>
+<p><strong>Idea:</strong> gate <code>height_collapse_cue</code> using a scene-wide <code>FloorRegion</code> (an aggregate
+band of where ankles are typically observed across the whole room), evaluated at the hip position, to exclude a
+standing bend from wrongly triggering the height-collapse-based alternate grounding path.</p>
+<p><strong>Why it was reverted:</strong> found, via real-video regression testing, to be too imprecise for real camera
+perspective — a genuine fall's hip does not reliably land inside an aggregate band that was never designed to be
+perspective-correct for every image column. This caused <strong>two separate real regressions</strong>: it blocked a
+real validation video's true positive when applied too broadly, and even after narrowing its scope, it still blocked a
+newly-reported real vertical-fall case.</p>
+
+<h3>5.3 V4.4 — Per-track, self-relative hip-drop signal <span class="tag tag-fixed">Kept</span></h3>
+<p><strong>Fix:</strong> replaced the scene-wide floor-region check with a signal that needs no scene calibration at all:
+has <em>this specific track's own hip</em> moved down substantially from where it was the last time <em>this same
+track</em> was confidently standing? A track with no prior standing observation (including every "already lying when
+first seen" case) is never gated by this — it simply isn't computed (<code>None</code>), by design, preserving the
+guarantee that a person found already down needs no fall history to be detected.</p>
+<p><strong>A sub-bug found and fixed within this same fix:</strong> using <code>torso_angle &lt; threshold</code> alone
+to decide "is this track confidently standing right now" was not sufficient, because a foreshortened fall <em>also</em>
+reads <code>torso_angle ≈ 0</code> — meaning a track could record its own fallen posture as its "standing" baseline.
+Fixed by also requiring <code>body_height_norm</code> to look genuinely standing-height before trusting a frame as a
+baseline.</p>
+
+<h3>5.4 V4.5 — Fusion alternate-path torso-angle gate <span class="tag tag-fixed">Kept</span></h3>
+<p><strong>Real trigger:</strong> a person bending forward on their feet to reach the ground was confirmed MANDOWN on a
+live camera.</p>
+<p><strong>Root cause:</strong> the "alternate grounding path" (§3.4, rule 5) exists specifically because
+<code>torso_angle</code> is blind for a foreshortened fall — but it never actually verified that <code>torso_angle</code>
+<em>was</em> near-zero. It fired just as easily for a deep bend, where <code>torso_angle</code> is emphatically not blind
+(reads ~0.64) and already carries clear "not down" evidence that <code>down_score</code>/<code>kneeling_penalty</code>
+were supposed to apply.</p>
+<p><strong>Fix:</strong> require <code>torso_angle</code> to be confirmed near-zero (evidence present <em>and</em> below
+a small ceiling) before this path can fire at all.</p>
+
+<h3>5.5 V4.6 — Kneeling-penalty torso-blind fix <span class="tag tag-fixed">Kept</span></h3>
+<p><strong>Real trigger:</strong> a person fallen toward the camera with legs not confidently visible (ankle confidence
+~0.05–0.09) was never flagged.</p>
+<p><strong>Root cause:</strong> <code>kneeling_penalty</code>'s occlusion fallback (used when legs aren't confidently
+visible) also treats a near-zero <code>torso_angle</code> as "confidently upright" — the identical blind spot as §5.4,
+in a different component. Measured on the real miss: this was cutting <code>down_score</code> from ~0.70 down to 0.50.</p>
+<p><strong>Fix:</strong> corroborate with <code>height_collapse_cue</code> the same way the fusion path does — only relent
+the penalty when torso is confirmed near-zero <em>and</em> independent height evidence strongly confirms a genuine
+collapse.</p>
+
+<h3>5.6 V4.7 — Combined-moderate-evidence fusion path <span class="tag tag-reverted">Reverted</span></h3>
+<p><strong>Real trigger:</strong> a person lying flat, legs extended, facing the camera at a shallower angle than the
+near-zero case above (<code>torso_angle=0.22</code>) — too shallow for the existing alternate path, but with
+<code>down_score</code>, <code>floor_proximity_score</code>, and <code>height_collapse_cue</code> all simultaneously
+moderately elevated.</p>
+<p><strong>Idea:</strong> let several independently-moderate, orientation-immune signals combine into confirmation when
+sustained.</p>
+<div class="box box-reverted">
+<strong>Why it was reverted:</strong> a synthetic crouching posture (no real bend, just kneeling penalty near zero)
+measured comparable or higher numbers on the same three signals, and reached MANDOWN under a confident LSTM once this
+path was added — verified before shipping via the project's own negative-control testing discipline. No threshold on
+these three signals alone could admit the real target case without also reopening this crouching false positive.
+</div>
+
+<h3>5.7 V4.8 — Monocular 2D→3D pose lifting <span class="tag tag-fixed">Kept — the structural fix</span></h3>
+<p>This is the headline addition of this round: a new module (<code>src/pose_3d.py</code>) wraps MediaPipe's Pose
+Landmarker to recover an approximate 3D skeleton from the same single 2D image, per detected person, per frame.</p>
+<h4>How it works</h4>
+<ul>
+  <li>Crops the YOLO bounding box (with padding — BlazePose expects to see a full body with margin) and runs MediaPipe's
+  landmarker on just that crop.</li>
+  <li>Reads <code>pose_world_landmarks</code> — a metric, hip-centered 3D estimate. Verified empirically against real
+  footage (not just assumed from documentation) that <strong>Y increases downward</strong> for a normally-oriented
+  camera view: confirmed on a real standing person (torso vector dominated by +Y) and a real, clearly-lying-flat person
+  (angle from the Y axis ~77–86°).</li>
+  <li>Computes <code>torso_angle_3d</code> = angle between the real 3D shoulder→hip vector and vertical, normalized to
+  the same 0–1 convention as the existing 2D <code>torso_angle</code>.</li>
+</ul>
+<h4>Why this is not "just another 2D feature"</h4>
+<p>MediaPipe's estimate is an <em>inference</em> from a learned prior over plausible human body configurations (trained on
+motion-capture datasets), not a physical depth measurement — it does not always agree with 2D features, and its accuracy
+on an unusual camera angle is not guaranteed by documentation alone. This is why every claim about it in this report is
+backed by a real, measured example, not an assumption.</p>
+<h4>Performance gate</h4>
+<p>Because this is a second model inference per person per frame, it does not run unconditionally. It only runs when the
+cheap 2D height signal already looks suspicious (<code>body_height_norm &lt; 0.85</code>) or is not yet calibrated at
+all — never on every normal standing frame in a live deployment.</p>
+<h4>Where it plugs in</h4>
+<p>Two places, both requiring a real geometric floor alongside the 3D reading (a lone 3D reading can never confirm by
+itself):</p>
+<ul>
+  <li><code>kneeling_penalty</code>: a confident <code>torso_angle_3d</code> reading of lying can relent the penalty
+  directly, independent of the 2D <code>torso_angle</code> reading.</li>
+  <li><code>fusion.py</code>'s new "confident 3D lying" path: confirms MANDOWN together with minimal geometric backing,
+  independent of the 2D-derived alternate path.</li>
+</ul>
+
+<h3>5.8 V4.8.1 — Height-collapse requirement added to the 3D path <span class="tag tag-fixed">Kept</span></h3>
+<p><strong>Real trigger:</strong> the exact same deep-bend posture from §5.4/§5.5 reached MANDOWN again through the
+<em>new</em> 3D path, because a sufficiently deep bend genuinely tilts the torso in real 3D space too — measured live at
+<code>torso_angle_3d=0.777</code>, almost identical to its own 2D <code>torso_angle=0.778</code>. <code>torso_angle_3d</code>
+is not blind to a bend the way it is to a foreshortened fall, so a high reading alone does not distinguish the two.</p>
+<p><strong>Fix:</strong> require <code>height_collapse_cue</code> to also confirm a genuine collapse before trusting the
+3D path — a bend can never bring the hip down toward the floor (legs stay extended, hip stays at standing height),
+whereas any genuine fall does.</p>
+
+<h3>5.9 V4.9 — Torso-hip-angle-mismatch signal <span class="tag tag-open">Attempted twice; kept, with caveats</span></h3>
+<p><strong>Real trigger:</strong> even the height-collapse requirement above was not enough — under real per-camera
+calibration, a deep bend's overall bounding-box height <em>also</em> genuinely shrinks (head and shoulders come down
+close to hip level), so <code>height_collapse_cue</code> cleared its own floor too (measured: 0.53).</p>
+<p><strong>The real discriminator found:</strong> in a bend, the legs stay planted and near-vertical (low
+<code>hip_angle</code>) while only the torso hinges over (high <code>torso_angle</code>) — a large gap between the two.
+Genuine diagonal lying tilts the whole body as one unit, so <code>torso_angle</code> and <code>hip_angle</code> read
+close together (verified: ~0.02 gap on a diagonal-lying test fixture, vs. ~0.55 on the real bend).</p>
+<div class="box box-warn">
+<strong>First attempt — a scare, later resolved:</strong> checked against this project's single most protected real
+true-positive track using a <em>test script that did not wire in real per-camera height calibration</em>. That flawed
+check appeared to show the entire confirmed event suppressed to zero. The change was reverted immediately out of an
+abundance of caution. Re-verifying with the camera's <em>real</em> saved calibration wired in showed the actual
+confirming frames of that track have a <em>small</em> torso-hip gap (0.01–0.23) — the uncalibrated test had been
+misleading. The fix was re-applied after this correction, and the project's full test suite (250 tests) plus this
+targeted recheck both passed.
+</div>
+<p>This episode is recorded in detail because it illustrates the project's validation discipline in action: a change was
+reverted the moment a check — even an imperfect one — suggested regression risk to the most safety-critical case, and
+only re-applied after the check itself was corrected and re-verified.</p>
+
+<h3>5.10 V4.10 — Direct down_score confirm path <span class="tag tag-fixed">Kept — closed 4 gaps at once</span></h3>
+<p><strong>Real trigger:</strong> a person lay flat, foreshortened toward the camera, for a sustained 42 real seconds.
+The event log showed the fusion engine's own per-frame evidence read <code>suggested_tier: "MANDOWN"</code> with
+<code>down_score=0.925</code> (near-maximal) — yet the event never confirmed. The LSTM was 99.9% confident this was
+"normal" (<code>lstm_mandown_prob=0.001</code>) — the same 2D blind spot affecting the LSTM's own 5-feature input, since
+it is computed the same way.</p>
+<p><strong>Root cause:</strong> the existing "geometric-alone confirm" override (§3.4, rule 2) requires
+<code>feature_confidence ≥ 0.60</code> — but <code>feature_confidence</code> is a <em>blend</em> of
+<code>down_score</code> with several other components (including <code>fall_motion_score</code>, which correctly reads
+~0 for a static lying person) and is then discounted by <code>pose_quality</code>. In this real case the blend landed at
+0.602 — a hair above the threshold, not comfortably above it. Any small frame-to-frame dip broke the override,
+preventing the state machine's required run of consecutive confirming frames.</p>
+<p><strong>Fix:</strong> give <code>down_score</code> alone — already the single most direct "is this person down"
+signal, and already sufficient on its own to bypass the LSTM safety cap — a <em>direct</em> path to force the fusion
+score to the confirm threshold, instead of only reaching it indirectly through a blend that can dilute it.</p>
+<div class="box box-fixed">
+<strong>This is a monotonic improvement:</strong> it can only <em>raise</em> the fusion score for frames where
+<code>down_score</code> and persistence were already independently strong — it cannot lower the score for any case, and
+cannot admit any case that wasn't already permitted to bypass the safety cap by the pre-existing rule.
+As a side effect, it also closed three other long-standing, honestly-documented "known limitation" gaps in the test
+suite (diagonal lying, side-lying with bent knees, and the calibrated vertical fall with a cold LSTM) — all four shared
+the exact same root cause.
+</div>
+
+<h3>5.11 Ground-plane 2D perspective calibration upgrade <span class="tag tag-fixed">Kept</span></h3>
+<p>Independent of the fall-orientation fixes above: the scene calibration's perspective fit was upgraded from a 1-D
+(image row only) linear regression to a proper 2-D (row and column) fit. A camera mounted at an angle has perspective
+scale that genuinely varies across both axes, not just vertically — most visible on a wide-angle lens, where the old
+row-only fit's "expected size" was only correct along one column and increasingly wrong toward the frame edges.
+Degrades gracefully to the old row-only behavior when there isn't yet enough horizontal variation in the observed
+samples to fit a stable column term.</p>
+
+<h3>5.12 Other issues found and fixed this round (unrelated to orientation, listed for completeness)</h3>
+<table>
+<tr><th>Issue</th><th>Fix</th><th>Status</th></tr>
+<tr><td>Red MANDOWN box "stuck on screen" after the person is gone</td><td>Persistence window made configurable, reduced from a hard-coded 10s to 3s</td><td><span class="tag tag-fixed">Fixed</span></td></tr>
+<tr><td>Multiple simultaneously-fallen people only got one red box in the saved screenshot</td><td>Screenshot save deferred until every person in the frame is classified, then draws everyone currently "fallen"</td><td><span class="tag tag-fixed">Fixed</span></td></tr>
+<tr><td>A stationary object (a dark bean-bag cushion) misdetected as a person, then classified as falling</td><td>Root-caused to the YOLO pose detector itself, not the MANDOWN scoring logic; see §7</td><td><span class="tag tag-open">Open — see §7</span></td></tr>
+</table>
+
+<h2 id="validation" class="section-break">6. Real-World Validation Results</h2>
+
+<h3>6.1 The four standing reference videos</h3>
+<table>
+<tr><th>Video</th><th>Confirmed</th><th>Confidence</th><th>Notes</th></tr>
+<tr><td><code>mandown_2.mp4</code></td><td>1 / 1</td><td class="num">0.881</td><td>Boosted from ~0.62 pre-3D-lifting</td></tr>
+<tr><td><code>man_down_c08.mp4</code></td><td>1 / 1</td><td class="num">0.841</td><td>Boosted from ~0.65</td></tr>
+<tr><td><code>man_down_zoomed_demo.mp4</code></td><td>1 / 1</td><td class="num">0.867</td><td>9 different real people tracked across the video; zero false positives among the rest</td></tr>
+<tr><td><code>M_D_2.mp4</code> — protected track</td><td>1 / 1</td><td class="num">0.831 / down<sub>score</sub>=0.813</td><td><strong>Exact match</strong> to the long-established protected baseline for this track — zero regression across every change in this round</td></tr>
+</table>
+
+<h3>6.2 Live RTSP testing — postures confirmed working</h3>
+<ul>
+  <li>A person lying flat, foreshortened toward the camera, arms folded — confirmed via the 3D grounding path
+  (<code>torso_angle_3d=0.575</code>, <code>height_collapse_cue=0.63</code>).</li>
+  <li>The same general posture sustained for 42 real seconds — confirmed via the V4.10 direct <code>down_score</code>
+  path after the fix (<code>down_score=0.925</code> measured in the real event log).</li>
+  <li>A person lying laterally (side-on to the camera) — confirmed cleanly via the pre-existing 2D path, unaffected by
+  any change this round.</li>
+</ul>
+
+<h3>6.3 Live RTSP testing — false positives found and fixed</h3>
+<ul>
+  <li>A person bending forward on their feet to reach a low table/device (§5.4, §5.5, §5.8, §5.9) — now correctly stays
+  below MANDOWN across a confident LSTM sweep, verified directly against the real captured keypoints on repeat
+  occurrences of the same posture.</li>
+  <li>The closest, most foreshortened real standing person available in the entire test corpus (a worker in the
+  "zoomed" close-camera reference video) — directly measured at <code>torso_angle_3d=0.243</code>, correctly read as
+  upright, staying at NORMAL/POSSIBLE even under a maximally confident-wrong LSTM (0.95).</li>
+</ul>
+
+<h2 id="limitations" class="section-break">7. Known Remaining Limitations (Honest Accounting)</h2>
+<p class="small">Per this project's standing discipline: a gap is reported honestly with real numbers, never quietly
+patched by loosening an unrelated threshold.</p>
+
+<h3>7.1 <span class="tag tag-open">OPEN</span> — Lying on the back with one knee raised</h3>
+<p>Most recently found. A person lay foreshortened toward the camera with one knee bent upward (hands clasped on chest) —
+the geometry differs enough from the flat-arms-folded posture in §6.2 that it did not confirm. Measured directly on the
+real frame:</p>
+<pre>torso_angle       = 0.121   (2D — near-zero, foreshortening blind spot as expected)
+hip_angle         = 0.175
+torso_angle_3d    = 0.319   (below the 0.55 "confident lying" floor — the raised knee likely
+                             shifts MediaPipe's inferred 3D shoulder/hip positions)
+down_score        = 0.454   (below the 0.65 direct-confirm floor)
+floor_proximity   = 0.552   (below the 0.70 floor the 2D alternate path needs)
+height_collapse   = 0.649   (clears its own floor, but no path currently uses it alone here)
+→ fusion capped at 0.45 (POSSIBLE_MANDOWN ceiling) regardless of LSTM confidence</pre>
+<p><strong>Diagnosis:</strong> none of the three "escape valves" (2D alternate path, 3D grounding path, direct
+down_score path) individually clears its own bar for this specific posture, even though every individual number is
+elevated in the correct direction. This is structurally the same class of problem as the V4.7 attempt (§5.6) — several
+moderately-elevated signals, no single one strong enough — and should <strong>not</strong> be patched by simply lowering
+one of the existing floors, for the same reason V4.7 was reverted: the same combination of moderate readings is also
+producible by postures that should not confirm. A safe fix needs a new, targeted discriminator specific to this posture
+(most likely: understanding why <code>torso_angle_3d</code> reads so much lower here than in the flat-arms case despite
+both being genuine lying-toward-camera postures — possibly the raised knee's keypoints are pulling MediaPipe's inferred
+hip position, or a per-posture MediaPipe accuracy limitation), analogous to how the hip-angle-mismatch signal (§5.9) was
+found for the bend case.</p>
+
+<h3>7.2 <span class="tag tag-open">OPEN — no safe algorithmic fix identified</span> — Inanimate object misdetected as a person</h3>
+<p>A dark bean-bag cushion on a couch is detected by the YOLO pose model as a "person" with moderate confidence (~0.63),
+and — once treated as a person — is reasonably (if wrongly) read as a collapsed posture by the downstream logic.</p>
+<p><strong>Why raising the detection-confidence threshold does not work:</strong> real confirmed falls in the reference
+videos are detected with confidence as low as 0.30–0.35 during parts of their own event (a collapsed, occluded, or
+unusually-posed real person is often harder for YOLO to confidently detect than this static object is). Any threshold
+high enough to reject the object would also reject real falls.</p>
+<p><strong>Why cross-checking with the new 3D lifting does not help either:</strong> tested directly — MediaPipe also
+confidently hallucinates a lying pose on the same object (<code>torso_angle_3d=0.89</code>, <code>evidence_quality=
+0.995</code>). Both models are pattern-matching plausible human shapes, not verifying "is this actually a human", so
+this cross-check adds no new information for this specific failure mode.</p>
+<p><strong>Recommended fix:</strong> physical — move, remove, or reposition the object (or reangle the camera slightly)
+so it no longer presents a person-like silhouette. No downstream scoring change can reliably separate "a real, oddly-posed
+person" from "an object that happens to look like one" using only the confidence signal available, since the two
+populations genuinely overlap.</p>
+
+<h3>7.3 <span class="tag tag-open">OPEN</span> — Camera 2, shallow-angle lying case</h3>
+<p>Found earlier in this engineering effort, prior to the 3D-lifting work: a person lying at a shallower angle than the
+near-zero foreshortened case, where every individual 2D/height signal reads moderate rather than strong. Documented at
+the time with exact numbers; not yet re-tested against the current, fuller feature set (2D+3D combined) — worth
+revisiting now that more discriminators exist.</p>
+
+<h3>7.4 <span class="tag tag-info">Environment, not code</span> — GPU clock throttling observed</h3>
+<p>During validation, the GPU was observed stuck at 180 MHz of a 3090 MHz maximum despite showing 100% utilization —
+an infrastructure/power-management issue unrelated to any change in this report, but worth investigating separately if
+real-time throughput becomes a concern in deployment, since it affects every video/live-stream run equally.</p>
+
+<h2 id="config" class="section-break">8. Configuration Reference</h2>
+<p>All thresholds discussed in this report live in <code>configs/mandown_config.yaml</code> (loaded into
+<code>src/config.py</code> dataclasses). Every value carries an in-file comment explaining its origin — real measured
+number, synthetic fixture, or design margin — so a future engineer can tell at a glance whether a given number is safe
+to retune or load-bearing for a specific protected case.</p>
+<table>
+<tr><th>Config section</th><th>Governs</th></tr>
+<tr><td><code>hip_drop</code></td><td>The per-track self-relative hip-drop signal (§5.3)</td></tr>
+<tr><td><code>kneeling</code></td><td><code>kneeling_penalty</code> and all its corroboration/relent conditions (§5.5, §5.8, §5.9)</td></tr>
+<tr><td><code>pose_3d</code></td><td>Monocular 2D→3D lifting: model path, confidence floors, the real-time performance gate (§5.7)</td></tr>
+<tr><td><code>fusion</code></td><td>All EvidenceFusion override/cap rules (§3.4)</td></tr>
+<tr><td><code>pose_failure.occluded_marker_seconds</code></td><td>How long a lost track's red box lingers on screen (§5.12)</td></tr>
+</table>
+
+<h2 id="files" class="section-break">9. Files Changed This Round</h2>
+<table>
+<tr><th>File</th><th>Change</th></tr>
+<tr><td><code>src/pose_3d.py</code></td><td><strong>New.</strong> Monocular 2D→3D pose lifting via MediaPipe.</td></tr>
+<tr><td><code>models/mediapipe/pose_landmarker_lite.task</code></td><td><strong>New.</strong> Downloaded MediaPipe model asset.</td></tr>
+<tr><td><code>src/scene_profile.py</code></td><td>Perspective fit upgraded from 1-D (row) to 2-D (row + column).</td></tr>
+<tr><td><code>src/feature_extraction.py</code></td><td>New <code>torso_angle_3d</code> / <code>torso_angle_3d_evidence_quality</code> fields; <code>ankle_x</code> and <code>pose_3d</code> threaded through <code>extract()</code>.</td></tr>
+<tr><td><code>src/feature_mandown.py</code></td><td><code>_kneeling_penalty</code>: 3D-lifting relent path, torso-hip-angle-mismatch signal.</td></tr>
+<tr><td><code>src/fusion.py</code></td><td>3D grounding path; direct <code>down_score</code> confirm path; torso-hip-mismatch exclusion.</td></tr>
+<tr><td><code>src/pipeline.py</code></td><td>Wires <code>Pose3DEstimator</code> into the per-person loop with the performance gate; ankle_x computed before feature extraction.</td></tr>
+<tr><td><code>src/config.py</code>, <code>configs/mandown_config.yaml</code></td><td>New <code>Pose3DConfig</code>; new thresholds for every fix above, each with a rationale comment.</td></tr>
+<tr><td><code>requirements.txt</code></td><td>Added <code>mediapipe</code>.</td></tr>
+<tr><td><code>tests/test_pose_3d.py</code></td><td><strong>New.</strong> Unit + real-model integration tests for the lifting module.</td></tr>
+<tr><td><code>tests/test_fusion.py</code>, <code>tests/test_feature_mandown.py</code>, <code>tests/test_already_lying_integration.py</code>, <code>tests/test_scene_profile.py</code></td><td>Extensive new/updated regression coverage — every real number in this report has a corresponding unit test.</td></tr>
+</table>
+<p class="small">Full test suite as of this report: <strong>250 passed, 0 failed, 0 unexpectedly skipped.</strong></p>
+
+<h2 id="next" class="section-break">10. Recommendations / Next Steps</h2>
+<ol>
+  <li><strong>Highest priority:</strong> investigate §7.1 (raised-knee lying posture) with the same rigor as the bend
+  case — capture more real examples of this posture, measure exactly why <code>torso_angle_3d</code> reads low, and
+  design a targeted fix validated against both this case and the existing protected true positives before shipping.</li>
+  <li>Re-test §7.3 (Camera 2 shallow-angle case) against the current, fuller feature set — the 3D-lifting work may have
+  already narrowed or closed this gap as a side effect, the way V4.10 did for three other cases.</li>
+  <li>For §7.2 (object misdetection), the recommended path is physical (reposition the object/camera) rather than
+  further algorithmic tuning, given the demonstrated overlap between real low-confidence falls and this object's
+  detection confidence.</li>
+  <li>Investigate the GPU clock-throttling observation (§7.4) separately if live-deployment frame rate becomes a
+  concern.</li>
+  <li>Continue the established validation discipline for any future change: unit tests with real measured numbers,
+  explicit negative-control checks against every previously-fixed false positive, and re-verification of the protected
+  <code>M_D_2.mp4</code> track before considering any fusion/scoring change complete.</li>
+</ol>
+
+<footer>
+MANDOWN V5 Implementation Report — generated from a live engineering session's real RTSP camera testing, unit test
+suite, and reference-video validation. All numeric values quoted in this report were measured directly against real
+footage or the project's own automated test suite at the time of writing, not estimated.
+</footer>
+
+</body>
+</html>

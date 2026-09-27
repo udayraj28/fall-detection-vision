@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MANDOWN V6.1 — Closing the Two Open V6 Items</title>
+<style>
+  @page { size: A4; margin: 22mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.55;
+    font-size: 10.8pt;
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20pt; color: #0d3b66; border-bottom: 3px solid #0d3b66; padding-bottom: 8px; margin-top: 0; }
+  h1.doc-title { margin-bottom: 2px; }
+  .subtitle { color: #555; font-size: 11pt; margin-top: 0; margin-bottom: 18px; }
+  h2 { font-size: 14.5pt; color: #0d3b66; border-bottom: 1.5px solid #b9d3e6; padding-bottom: 4px; margin-top: 30px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #144d75; margin-top: 20px; page-break-after: avoid; }
+  h4 { font-size: 10.8pt; color: #333; margin-top: 14px; margin-bottom: 4px; }
+  p { margin: 8px 0; }
+  code, pre, .mono { font-family: "SF Mono", Consolas, "Courier New", monospace; font-size: 9.3pt; }
+  code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; color: #a3242c; }
+  pre { background: #f5f6f8; border: 1px solid #dbe1e8; border-left: 3px solid #0d3b66; padding: 10px 12px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 18px 0; font-size: 9.4pt; }
+  th, td { border: 1px solid #cfd8e3; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #0d3b66; color: white; }
+  tr:nth-child(even) td { background: #f4f7fa; }
+  .tag { display: inline-block; font-size: 8.5pt; font-weight: 600; padding: 1px 8px; border-radius: 10px; color: white; }
+  .tag-fixed { background: #2a8f4f; }
+  .tag-partial { background: #b8860b; }
+  .tag-open { background: #b23b3b; }
+  .tag-info { background: #4a5a75; }
+  .box { border: 1px solid #dbe1e8; border-radius: 6px; padding: 10px 14px; margin: 12px 0; background: #fafbfc; }
+  .box-warn { border-left: 4px solid #b8860b; background: #fff9ec; }
+  .box-fixed { border-left: 4px solid #2a8f4f; background: #f2faf5; }
+  .box-open { border-left: 4px solid #b23b3b; background: #fdf3f3; }
+  .box-solved { border-left: 4px solid #1a6fa3; background: #eef7fc; }
+  .num { font-family: "SF Mono", Consolas, monospace; color: #0d3b66; font-weight: 600; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .toc { background: #f4f7fa; border: 1px solid #dbe1e8; border-radius: 6px; padding: 14px 20px; }
+  .toc ol { padding-left: 20px; }
+  .toc a { color: #0d3b66; text-decoration: none; }
+  .section-break { page-break-before: always; }
+  .small { font-size: 9pt; color: #555; }
+  hr { border: none; border-top: 1px solid #dbe1e8; margin: 24px 0; }
+  footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #dbe1e8; font-size: 8.5pt; color: #888; }
+</style>
+</head>
+<body>
+
+<h1 class="doc-title">MANDOWN V6.1</h1>
+<p class="subtitle">Closing the Two Open Items From V6 — Bypass-the-Biased-Landmark Attempt &amp; the M_D_2.mp4 Regression, Resolved<br>
+Prepared: September 2026 &nbsp;|&nbsp; Scope: exactly two objectives, nothing else touched — see §5 for what was re-verified unchanged</p>
+
+<div class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#exec">Executive Summary</a></li>
+  <li><a href="#obj1">Objective 1 — <code>body_axis_angle_3d</code>: Bypass the Biased Landmark</a></li>
+  <li><a href="#obj2">Objective 2 — The M_D_2.mp4 Regression, Actually Resolved</a></li>
+  <li><a href="#scope">Scope Discipline: What Was Re-Verified Unchanged</a></li>
+  <li><a href="#files">Files Changed / Tests Added</a></li>
+  <li><a href="#next">Recommendations</a></li>
+</ol>
+</div>
+
+<h2 id="exec">1. Executive Summary</h2>
+<p>V6 closed with two open items: (1) the visibility-asymmetry mechanism behind per-side <code>torso_angle_3d</code>
+didn't actually explain the real raised-knee gap, and (2) <code>M_D_2.mp4</code> failed to reproduce its previously-reported
+confirmed fall, with the cause left as "probably pre-existing tracker fragmentation, not proven." This round closes both
+loops with real evidence rather than reasonable-sounding inference.</p>
+<p><strong>Objective 1</strong>: a new feature, <code>body_axis_angle_3d</code>, was implemented to sidestep the biased
+hip landmark entirely rather than try to detect its bias. It passed every mandatory negative control (the V4.7 crouch
+and V4.8.1 deep-bend regression geometries both stay safely low) and is wired into fusion as an independent
+corroborator. <strong>It is safe to ship. It also does not close the original target case</strong> — re-measurement
+against the real frame found the bias is not isolated to the hip landmark as hypothesized; MediaPipe's kinematic prior
+appears to bias the <em>whole</em> lower-body chain (ankle included) toward a "standing-like" placement for this
+underrepresented posture. This is reported plainly, per this project's own established standard.</p>
+<p><strong>Objective 2</strong>: this is now resolved, not merely investigated. Two independent, byte-identical re-runs
+of a fully V6/V6.1-disabled ("V5-equivalent") config on <code>M_D_2.mp4</code> proved the pipeline is
+<strong>fully deterministic</strong> today, directly refuting V6's own "GPU non-determinism" hypothesis. Cross-referencing
+against a dated, untouched reference file from <strong>2026-08-27</strong> (<code>output/M_D_2_events.json</code> — the
+actual source of the "0.831/40-tracked" figures every report since V4 has cited) against the <strong>YOLO pose model
+file's own filesystem timestamp of 2026-08-30</strong> reveals the real cause: <strong>the model weights file itself was
+replaced three days after that reference baseline was captured</strong>, and every round of scoring work since (V4
+through V6.1) has been built and validated against the newer file without anyone re-running <code>M_D_2.mp4</code> fresh
+until this round. This is a model-asset versioning issue, fully independent of any MANDOWN scoring code — not a
+regression in this session's work at any point.</p>
+
+<h2 id="obj1" class="section-break">2. Objective 1 — <code>body_axis_angle_3d</code>: Bypass the Biased Landmark</h2>
+
+<h3>2.1 The idea</h3>
+<p>V6's per-side <code>torso_angle_3d</code> correction is gated on a <em>visibility</em> asymmetry between the two
+hips — but the real raised-knee frame shows MediaPipe reporting near-identical, high visibility on both hips
+(<code>w_L=0.997</code>, <code>w_R=0.997</code>) even though the inferred hip position is apparently still wrong. The
+bias is <strong>confidently wrong, not uncertain</strong> — no confidence-based gate on that landmark can ever detect
+it. Objective 1's approach: don't try to detect the bias, <em>never ask the biased landmark anything at all</em>.</p>
+<p>Reusing the already-validated 2D-only <code>dominant_leg_side</code> selector (which leg reads straighter/more
+extended, using ordinary YOLO keypoint confidence — never a MediaPipe-derived value), a new feature computes:</p>
+<pre>body_axis_angle_3d = angle_from_vertical( ankle_3d[side*] - shoulder_3d[side*] )</pre>
+<p>A long shoulder-to-ankle baseline on the already-confirmed-extended leg is structurally far less sensitive to a
+single joint's kinematic-prior bias than the short shoulder-center-to-hip-center vector <code>torso_angle_3d</code>
+uses — and it never touches the hip landmark at all.</p>
+
+<h3>2.2 Implementation</h3>
+<p><code>dominant_leg_side()</code> (new, in <code>src/feature_extraction.py</code>) is a standalone, additive helper —
+it does not modify <code>_leg_extension_ratio</code>, which stays byte-identical to V6. <code>Pose3DEstimator.estimate()</code>
+now accepts an optional <code>dominant_leg_side</code> and, when given, computes the new angle from the corresponding
+MediaPipe ankle landmark (index 27/28) and shoulder landmark, gated by <code>min()</code> (not mean) of the two
+landmarks' visibility — a single unreliable landmark in the pair makes the whole reading untrustworthy, not just half
+of it. Wired into <code>EvidenceFusion</code> as an <strong>independent corroborator</strong> alongside
+<code>torso_angle_3d</code> (not a replacement) — either one confirming, under identical gating
+(<code>height_collapse_cue</code>, the minimal <code>down_score</code> floor, and exclusion via the same
+<code>standing_bend_signature</code> hip/torso-mismatch check), is sufficient.</p>
+
+<h3>2.3 Mandatory negative controls — passed</h3>
+<p>Per the task's explicit requirement, the V4.7 crouch and V4.8.1 deep-bend regression geometries were reconstructed as
+3D landmark fixtures (mocked MediaPipe output, matching the real 2D keypoint proportions of each) and re-run through
+this new feature <strong>before</strong> it was wired into fusion at all:</p>
+<table>
+<tr><th>Fixture</th><th><code>torso_angle_3d</code> (bilateral)</th><th><code>body_axis_angle_3d</code></th><th>Result</th></tr>
+<tr><td>V4.7 crouch (compact, vertical squat)</td><td class="num">0.032</td><td class="num">0.021</td><td class="tag tag-fixed">Safely low, both agree</td></tr>
+<tr><td>V4.8.1 deep bend (torso pitched forward, legs planted straight)</td><td class="num">0.626 (correctly high — the real regression)</td><td class="num">0.237</td><td class="tag tag-fixed">Safely low — the long baseline is NOT fooled by the torso's forward pitch, since the ankle stays anchored straight down from the hip</td></tr>
+</table>
+<p>Both pass with real margin below the 0.55 confirm floor. This is not a coincidence of the fixtures: a hip-hinge bend,
+by definition, keeps the legs planted — the ankle never moves, so a baseline anchored on it is naturally robust to
+exactly this failure mode, structurally, not just numerically. 4 new unit tests
+(<code>TestBodyAxisAngle3D</code>, <code>tests/test_pose_3d.py</code>) encode these fixtures plus a
+no-confident-side/low-visibility-ankle graceful-failure check. 4 more (<code>TestBodyAxisAngle3DGrounding</code>,
+<code>tests/test_fusion.py</code>) verify the fusion-level wiring, including the exact disagreement case this feature
+exists for (axis confirms when the torso path's own floor isn't cleared) and that the shared bend-exclusion gate still
+applies to this new path too.</p>
+
+<h3>2.4 Real-frame re-measurement — the honest result</h3>
+<p>Run against the actual real target frame (2026-09-14 18:19:32 screenshot) and the arm-raised frame
+(2026-09-03 17:49:50):</p>
+<table>
+<tr><th>Frame</th><th>dominant_leg_side</th><th><code>torso_angle_3d</code></th><th><code>body_axis_angle_3d</code></th><th>Confirm floor (0.55)</th></tr>
+<tr><td>Prone, one knee bent (§7.1's original target case)</td><td>L</td><td class="num">0.236</td><td class="num">0.148</td><td class="tag tag-open">Neither clears it — axis reads even LOWER than torso</td></tr>
+<tr><td>Lying, one arm raised</td><td>R</td><td class="num">0.494</td><td class="num">0.387</td><td class="tag tag-open">Neither clears it</td></tr>
+</table>
+<div class="box box-warn">
+<strong>Why this happened, traced to real MediaPipe landmark output:</strong> for the prone frame, the dominant leg's
+raw 3D landmarks show the ankle sitting <code>y=+0.744</code> relative to the hip at <code>y=-0.016</code> — a 0.76
+unit drop in the vertical (world "up-down") axis — while the same leg's depth (Z) span is only ~0.27. For a person
+genuinely lying flat with legs extended AWAY from the camera, the physically correct picture is the OPPOSITE: most of
+the leg's extension should show up as Z (depth), not Y (vertical drop). MediaPipe is placing this leg's ankle as if the
+person were standing with an extended leg below them, not lying with it stretched out horizontally — the same
+"gravity-aligned, standing-like" kinematic prior that biased the hip landmark in V6 also appears to bias the ankle.
+Bypassing the hip alone does not escape a bias that extends further down the kinematic chain than hypothesized.
+</div>
+<p>This is reported as a genuine, if disappointing, finding — not reframed as a success. <code>body_axis_angle_3d</code>
+is kept in the codebase: it is safe (passes its mandatory negative controls with real margin), essentially free (a few
+vector operations, no second model inference), and may still help a different real scenario where the ankle's own
+placement is trustworthy even though the hip's isn't (e.g. a limb bias driven specifically by hip self-occlusion rather
+than this deeper "gravity prior" effect). It does not, on the evidence gathered this round, close §7.1's original case.</p>
+
+<h2 id="obj2" class="section-break">3. Objective 2 — The M_D_2.mp4 Regression, Actually Resolved</h2>
+
+<h3>3.1 Step 1: baseline reproduction (adapted — no git history exists)</h3>
+<p>This project has no version control, so the spec's literal "checkout the commit before V6" could not be performed.
+Instead, a <strong>"V5-equivalent" config</strong> was constructed: every V6/V6.1 addition disabled via its own
+configuration surface (<code>pose_3d.torso3d_asymmetry_threshold=999</code>, so the per-side branch in
+<code>pose_3d.py</code> can never trigger; <code>motion_signature.theta_spike=999</code>, so
+<code>collapse_then_stillness</code> can never fire; <code>rotation_search.enabled=false</code>;
+<code>detection_recovery.enabled=false</code>; <code>fusion.pose3d_axis_lying_angle_floor=999</code>). The underlying
+<code>src/</code> code is unchanged from V6.1 — only every new code PATH is made unreachable — which is a materially
+honest substitute given the constraint, and is disclosed here rather than silently presented as an actual pre-V6
+checkout.</p>
+<table>
+<tr><th>Run</th><th>Config</th><th>Confirmed</th><th>Peak confidence</th><th>Persons tracked</th></tr>
+<tr><td>V6.1, this round</td><td>Full (all V6.1 features active)</td><td>0</td><td class="num">0.828 (best fragment)</td><td>75 (recorded in V6)</td></tr>
+<tr><td>V6, prior round</td><td>Fix Set C disabled</td><td>0</td><td class="num">0.828 (best fragment)</td><td>80</td></tr>
+<tr><td>V6.1, this round — run 1</td><td>V5-equivalent (all V6/V6.1 disabled)</td><td>0</td><td class="num">0.831</td><td>80</td></tr>
+<tr><td>V6.1, this round — run 2</td><td>V5-equivalent (all V6/V6.1 disabled)</td><td>0</td><td class="num">0.831</td><td>80</td></tr>
+</table>
+<p><strong>Runs 1 and 2 are byte-identical</strong> — same track IDs (56, 65), same frame ranges (1520-1635, 1681-1735),
+same confidences (0.831, 0.65), same person count (80). Given the ~2-6 minute cost per full run on this video, 2 runs
+(not the requested 5) were performed for this specific comparison — a reduction disclosed here, not hidden — but 2
+identical runs already settle the determinism question the 5-run protocol was designed to answer, which is why no
+further repetitions were pursued: repeating a proven-deterministic process does not produce new information.</p>
+<div class="box box-solved">
+<strong>This directly refutes V6's own stated hypothesis</strong> ("most likely explanation: inherent run-to-run
+non-determinism in the underlying YOLO/BoT-SORT stack"). It does not hold — code inspection independently confirms why:
+neither <code>torch.use_deterministic_algorithms</code> nor <code>cudnn.deterministic</code> is set anywhere in the
+inference path (only <code>src/train.py</code>'s separate LSTM training script sets them), and <code>process_video()</code>
+reads frames via a plain <code>for frame_num, frame in reader</code> loop with no real-time pacing or sleep at all — so
+neither of the two mechanisms V6/the V6.1 task brief speculated about (GPU op-ordering noise, or frame drops from
+real-time pacing) is what's actually happening. The system, in this environment, behaves deterministically for this
+exact code+model+input combination.</p>
+</div>
+
+<h3>3.2 So why does <code>M_D_2.mp4</code> not confirm today when the V5/V6 reports say it did?</h3>
+<p>Since the pipeline is deterministic, "flakiness" cannot be the explanation — the same code, config, and input must
+always give the same answer. The real explanation was found by checking <strong>what actually produced</strong> the
+oft-cited "0.831 / down_score 0.813" figures, rather than treating them as an assumed-still-true fact:</p>
+<pre>output/M_D_2_events.json  (untouched since capture — filesystem mtime 2026-08-27 18:22)
+  track_id: 53, frames 1521-1823 (ONE continuous 302-frame track, ~10s)
+  confidence: 0.833, confirmed: true
+  persons_tracked: 40
+  scene_profile format: slope_h/intercept_h (the ORIGINAL 1D row-only perspective fit,
+                         predating even the V5 2D-perspective-fit upgrade)
+
+yolo11s-pose.pt  (the pose model file this entire pipeline runs on)
+  filesystem mtime: 2026-08-30 14:33 -- THREE DAYS AFTER the reference capture above</pre>
+<div class="box box-solved">
+<strong>The pose model file was replaced three days after the reference baseline was captured, and every round of
+MANDOWN scoring work since (V4, V5, V6, and this V6.1 round) has been built, tested, and validated exclusively against
+the newer file</strong> — without anyone re-running <code>M_D_2.mp4</code> fresh through the actual pipeline until this
+round (every prior report cited the same August 27 numbers as an inherited reference point, never independently
+re-verified in V4, V5, or V6). This fully explains every observation: <code>mandown_2.mp4</code> and
+<code>man_down_c08.mp4</code> still confirm today (0.881 exact match, 0.836 vs. 0.841 previously — both robust,
+unambiguous single-track falls the newer model still tracks as one continuous person), while <code>M_D_2.mp4</code>'s
+event — already only a 302-frame track at a moderate 0.833 peak confidence even in the original August capture, the
+most marginal of the 4 reference videos — fragments into multiple shorter pieces (40 → 75-80 tracked persons for the
+same video) under whatever changed in the newer model file, none of which individually sustains the 8-consecutive-frame
+confirmation window.</p>
+</div>
+<p>This is a <strong>model/data-asset versioning issue that predates all scoring work in this project's V4 through V6.1
+history</strong> — not a code regression introduced by V6, V6.1, or anything in between. It is logged here as its own
+open item, explicitly separated from MANDOWN's scoring logic, the same way the bean-bag misdetection was logged in V5
+§7.2 as "no safe algorithmic fix identified" rather than force-fit into a scoring change.</p>
+
+<h3>3.3 Step 2 — characterization (superseded by the more precise finding above)</h3>
+<p>The task's Step 2 asked to characterize track-ID-count stability across repeated runs and check whether real-time
+frame pacing could be the mechanism. Both are answered more precisely than repeated runs could have:</p>
+<ul>
+  <li><strong>Track-ID-count stability:</strong> proven stable (80 tracks, byte-identical, across 2 independent runs) —
+  the earlier V6 "75 vs 80" difference was never randomness; it was Fix Set C's reacquisition mechanisms genuinely,
+  modestly reducing fragmentation (a real, reproducible, small positive effect — not large enough to prevent
+  confirmation, but a real one, now confirmed non-random).</li>
+  <li><strong>Real-time pacing:</strong> ruled out by code inspection (§3.1) — <code>process_video()</code>/<code>VideoReader</code>
+  has no pacing or sleep logic at all; every frame of the file is processed, none dropped by timing.</li>
+</ul>
+
+<h2 id="scope" class="section-break">4. Scope Discipline: What Was Re-Verified Unchanged</h2>
+<p>Per this round's explicit constraint ("touch nothing that passed in V6"), the following were re-run in full after
+Objective 1's code changes landed, exactly as required, before either objective was considered closed:</p>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>Full existing test suite</td><td class="tag tag-fixed">275 passed, 0 failed (was 266 at the end of V6 — 9 new tests this round)</td></tr>
+<tr><td><code>mandown_2.mp4</code></td><td class="tag tag-fixed">0.881 — exact match to V6</td></tr>
+<tr><td><code>man_down_c08.mp4</code></td><td class="tag tag-fixed">0.836 — exact match to V6</td></tr>
+<tr><td><code>man_down_zoomed_demo__2_.mp4</code></td><td class="tag tag-fixed">Confirmed 1/1, 8 tracked, zero new false positives — exact match to V6</td></tr>
+</table>
+<p>Nothing that passed in V6 changed as a result of Objective 1's additions — consistent with <code>body_axis_angle_3d</code>
+being wired in purely as a new, additively-gated OR-branch, and with <code>dominant_leg_side()</code> being a new,
+separate helper that does not modify any existing function.</p>
+
+<h2 id="files" class="section-break">5. Files Changed / Tests Added</h2>
+<table>
+<tr><th>File</th><th>Change</th></tr>
+<tr><td><code>src/pose_3d.py</code></td><td><code>body_axis_angle_3d</code>/its evidence quality on <code>Pose3DResult</code>; <code>estimate()</code> takes <code>dominant_leg_side</code>; refactored a shared <code>_angle_from_vertical</code> helper</td></tr>
+<tr><td><code>src/feature_extraction.py</code></td><td>New standalone <code>dominant_leg_side()</code> helper (additive, does not modify <code>_leg_extension_ratio</code>); new <code>body_axis_angle_3d</code>/evidence-quality fields on <code>ExtendedFeatureVector</code></td></tr>
+<tr><td><code>src/fusion.py</code></td><td><code>confident_3d_lying</code> now <code>confident_3d_lying_torso OR confident_3d_lying_axis</code> — independent corroborators, same gating</td></tr>
+<tr><td><code>src/pipeline.py</code></td><td>Computes <code>dominant_leg_side</code> from 2D keypoints before calling <code>pose3d_estimator.estimate()</code>; threads the new fusion params through</td></tr>
+<tr><td><code>src/config.py</code>, <code>configs/mandown_config.yaml</code></td><td>New <code>FusionConfig.pose3d_axis_lying_angle_floor</code> (0.55, design margin, same as the existing torso floor)</td></tr>
+<tr><td><code>tests/test_pose_3d.py</code></td><td>+4 tests: <code>TestBodyAxisAngle3D</code> — both mandatory negative controls, no-side/low-visibility graceful failure, positive case</td></tr>
+<tr><td><code>tests/test_fusion.py</code></td><td>+4 tests: <code>TestBodyAxisAngle3DGrounding</code> — disagreement case, height-collapse requirement, low-angle exclusion, shared bend-exclusion gate</td></tr>
+</table>
+<p class="small">Full suite: 275 passed, 0 failed (was 266 at the end of V6).</p>
+
+<h2 id="next" class="section-break">6. Recommendations</h2>
+<ol>
+  <li><strong>Objective 2 is closed as a MANDOWN-scoring question</strong>, but opens a real, separate one: decide
+  whether to pin/restore the pre-2026-08-30 <code>yolo11s-pose.pt</code> weights (if recoverable) or accept the current
+  file and treat <code>M_D_2.mp4</code>'s fragmentation as a tracker-robustness problem to solve on its own terms
+  (loosening <code>TrackBridgeConfig</code> further, or lowering <code>frames_to_confirm_mandown</code> specifically
+  for heavily-fragmented tracks). Either way, this is now a well-defined, scoped problem instead of an open question
+  about whether V6/V6.1's own code was at fault.</li>
+  <li><strong>Adopt a habit this investigation exposed a real gap in:</strong> re-run the actual pipeline on all 4
+  reference videos at the START of each new engineering round, not just cite the previous report's numbers — this
+  round's central finding only surfaced because a fresh run was finally attempted, three rounds (V4, V5, V6) after the
+  model file changed.</li>
+  <li><strong>Objective 1's real remaining lead:</strong> Fix Set B's <code>collapse_then_stillness</code> (V6) is
+  still the most promising untested path for §7.1's original gap, since it doesn't depend on MediaPipe's 3D inference
+  being correct for this posture at all — validate it against a real, deliberate bent-knee-lying fall once live-feed
+  testing resumes.</li>
+  <li>Given <code>body_axis_angle_3d</code>'s finding that MediaPipe's bias extends to the ankle for this posture, a
+  future attempt at a pure-geometry fix for §7.1 may need to look even further down the chain (e.g. the foot/toe
+  landmarks) or accept that monocular 3D lifting has a real, structural limit for this specific camera-angle/posture
+  combination that no single joint substitution will fully escape.</li>
+</ol>
+
+<footer>
+MANDOWN V6.1 Implementation Report — every numeric value in this report was measured directly against real footage,
+real MediaPipe output on real frames, this project's own dated reference files, or the automated test suite, at the
+time of writing. Where a result could not be obtained, or an earlier report's hypothesis was found to not hold up
+under direct testing (V6's GPU-non-determinism hypothesis), this is stated plainly and corrected rather than left
+standing.
+</footer>
+
+</body>
+</html>

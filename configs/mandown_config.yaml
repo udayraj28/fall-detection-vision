@@ -1,0 +1,350 @@
+# Central configuration for the Mandown detection algorithmic core.
+# LSTM/detector model paths and BoT-SORT tracker settings are configured
+# elsewhere (FallDetectionPipeline constructor args, configs/botsort.yaml).
+# This file holds the thresholds/weights for the components added on top
+# of the existing YOLO-pose + LSTM pipeline: scene normalization, rolling
+# person-size stats, feature-based Mandown scoring, evidence fusion, and
+# the temporal state machine.
+
+# Reliability filters applied before a detection is used for calibration
+# (scene profile / rolling person-size stats). Keeps corrupted/truncated/
+# low-confidence boxes out of the statistics.
+calibration:
+  min_keypoint_confidence: 0.5      # mean keypoint confidence to trust a detection
+  min_critical_keypoints: 4         # of {shoulders, hips, ankles} (6 total) required visible
+  frame_edge_margin_px: 4           # bbox within this many px of frame border = truncated, rejected
+  min_aspect_ratio_for_standing: 0.15
+  max_aspect_ratio_for_standing: 0.75  # only "tall/narrow" boxes count as standing-like samples
+  min_samples_for_confidence: 15    # below this, scene/size stats are "unavailable"
+  full_confidence_samples: 50       # at/above this many samples, calibration confidence = 1.0
+
+# Rolling person-size statistics (per camera). 30 samples, refreshed in
+# stride-10 batches (see RollingPersonSizeStats) -- decided against real
+# RTSP deployment: fast enough to calibrate a live camera's average person
+# height within the first couple dozen reliable detections.
+rolling_size:
+  window_size: 30
+  update_stride: 10
+  outlier_reject_iqr_multiplier: 2.5  # reject samples beyond median +/- k*IQR when computing stats
+  full_confidence_samples: 30         # own saturation point -- reaches confidence=1.0 once the window fills
+
+# Direct feature-based Mandown scoring weights (Phase 6).
+# Each sub-score is in [0, 1]; combined into `down_score`.
+feature_mandown:
+  motion_window_frames: 15           # recent-history window for fall-motion / angle-change scoring
+  persistence_window_frames: 45      # ~1.5s at 30fps, window for persistence_score
+  weights:
+    down_score: 0.40
+    fall_motion_score: 0.20
+    floor_proximity_score: 0.20
+    persistence_score: 0.10
+    floor_contact_score: 0.10        # absolute floor-band evidence; contributes 0 until scene is calibrated
+  # Sigmoid steepness/midpoints for continuous (non hard-threshold) cue mapping.
+  # cog_height and body-relative-height cues are normalized 0-1 before this.
+  sigmoid_steepness: 10.0
+  # V4: orientation-invariant lying geometry (diagonal lying / side-lying with
+  # bent knees). torso_angle-based down/floor-proximity cues are reshaped
+  # around this boundary instead of climbing linearly to 90 deg; body_axis_angle
+  # (long-baseline head->ankle-mid) may only corroborate -- not override -- a
+  # torso reading that already shows this much lean, and even then only
+  # partially. See src/config.py::OrientationConfig for the full rationale.
+  orientation:
+    upright_boundary: 0.40
+    boundary_steepness: 10.0  # matches this section's own sigmoid_steepness default above
+    corroboration_floor: 0.5   # axis may only corroborate once torso itself already clears upright_boundary
+    corroboration_weight: 0.5
+  # V4.2: a person who falls toward/away from the camera (foreshortened --
+  # angle-based cues above stay near "upright" since the fall is along the
+  # depth axis, not across the image plane) is invisible to torso/axis
+  # angles. body_height_norm (bbox height vs. calibrated expected standing
+  # height at this image row) doesn't depend on fall direction, so a strong
+  # calibrated shortfall directly corroborates down_score/floor_proximity_score
+  # instead of being diluted at a fixed 20% weight. Only ever activates on a
+  # real calibrated shortfall -- defaults to a neutral, non-triggering
+  # reading whenever scene calibration is unavailable.
+  height_collapse:
+    corroboration_floor: 0.5
+    # 0.75, not 0.5 (the value reused from OrientationConfig at first draft)
+    # -- calibrated separately: at 0.5 a genuine foreshortened fall's
+    # down_score only reached ~0.46-0.60, not enough headroom for the
+    # confirmed_mandown_floor_proximity_floor path below to matter in
+    # practice. Verified safe against the same adversarial occluded-seated
+    # fixture used to calibrate OrientationConfig's 0.5.
+    corroboration_weight: 0.75
+
+# V2: kneeling/sitting discrimination (Phase 9). A bent leg (kneeling, sitting)
+# should never read as "lying" even when the torso pitches forward and the
+# head/knee vertical span collapses like it does in true lying.
+kneeling:
+  extension_ratio_threshold: 0.85    # leg_extension_ratio below this reads as "bent" (kneeling/sitting)
+  sigmoid_steepness: 12.0
+  upright_gate_power: 1.0            # penalty is scaled by (1 - torso_angle) ** this — weakens as the
+                                      # torso pitches toward horizontal (true lying), but...
+  min_gate: 0.35                     # ...never fully vanishes for a moderately forward-leaning
+                                      # kneeling posture, but this floor itself fades out above...
+  extreme_lying_torso_angle: 0.9     # ...this torso_angle — a genuinely flat lying-with-bent-knee
+                                      # posture must not be floored the same as forward-leaning kneeling
+  # V3: occlusion handling (Phase 6) — when legs aren't confidently visible,
+  # leg_extension_ratio's neutral default must not be read as "confirmed
+  # extended". Falls back to a leg-independent torso-upright signal instead.
+  leg_evidence_quality_threshold: 0.5  # below this, legs are treated as occluded/unknown
+  torso_upright_gap_threshold: 0.25    # head-to-hip normalized gap above which the torso
+                                        # alone reads as upright, regardless of unseen legs
+  # V4.6: real RTSP miss -- a person fallen toward the camera with legs
+  # unevidenced was never flagged because upright_gate above reads
+  # torso_angle~0 the same for genuine upright/kneeling AND a foreshortened
+  # fall. Corroborate with height_collapse_cue (calibrated body_height_norm,
+  # never torso angle): only relent when torso is confirmed near-zero AND
+  # height evidence strongly confirms genuine collapse. See
+  # src/config.py::KneelingConfig for the measured real-camera numbers.
+  foreshortened_relent_torso_angle_ceiling: 0.2
+  foreshortened_relent_height_collapse_floor: 0.7
+  # V4.8: monocular 2D->3D pose lifting (src/pose_3d.py) gives a DIRECT,
+  # camera-calibration-independent measurement of real torso orientation.
+  # Crouching (torso vertical in 3D despite a shortened observed bbox)
+  # should read LOW here, unlike the height_collapse proxy above which
+  # can't tell it apart from genuine lying -- a conservative floor (~50
+  # deg from vertical) with margin above ordinary kneeling/crouching. See
+  # src/config.py::KneelingConfig for the full rationale.
+  pose3d_lying_relent_floor: 0.55
+
+# V2: floor-region reasoning (Phase 5) — a rolling estimate of the image band
+# where this camera's tracked people actually touch the ground (from ankle
+# y-positions), independent of the perspective-height regression. Marked
+# unavailable until enough reliable samples exist.
+floor_region:
+  min_samples_for_confidence: 15
+  full_confidence_samples: 50
+  band_half_width_ratio: 0.5         # half-width of the floor band = this * ankle-y IQR
+
+# V4: event-level deduplication (Phase 12) — the same physical downed person
+# can fragment across two simultaneously-active BoT-SORT track IDs (real case:
+# man_down_c08.mp4). A new event whose bbox substantially overlaps an already-
+# active event's most recent bbox is treated as the same physical event, not
+# a second alert. Two genuinely different people rarely sustain this much
+# overlap on a new event's very first frame.
+event_dedup:
+  iou_threshold: 0.25
+  recency_frames: 30    # candidate match must have been updated this recently
+
+# V4.2: track-context bridging (Phase 13) -- BoT-SORT reassigning a new
+# track_id to the same physically-unmoving downed person otherwise resets
+# all accumulated Mandown state to zero (measured: 74 tracked "persons" in
+# one real validation video under current settings). A brand-new track_id
+# whose first bbox closely overlaps a just-lost track's last position
+# adopts that track's existing context (history + state machine) instead of
+# starting fresh, then the existing gap-tolerance logic (TrackStateMachine.
+# on_gap) applies exactly as it already does for a same-ID detection gap.
+track_bridge:
+  iou_threshold: 0.3
+  # V4.3: raised from 30 -- a real observed gap on this session's RTSP
+  # camera (10fps) between a track's last confirmed-MANDOWN frame and its
+  # same-physical-person reappearance under a new id measured 107 frames
+  # (~10.7s), well beyond the old 30-frame/3s window. 300 frames (30s at
+  # 10fps) gives comfortable margin; iou_threshold, not this window, is
+  # the primary safety constraint against bridging to an unrelated person.
+  recency_frames: 300
+
+# V4.4: per-track, self-relative "has the hip dropped toward the floor
+# since this track was last confidently upright" signal -- replaces a V4.3
+# attempt that used FloorRegion (a scene-wide floor band built from many
+# people's ankle positions) evaluated at the hip. That proved too
+# imprecise for real camera perspective and caused two separate real-video
+# regressions (blocked genuine falls on top of the bends it was meant to
+# exclude) in one session. This needs no scene calibration at all, and is
+# never computed for a track with no prior standing observation --
+# including every "already lying at start" case, by design.
+hip_drop:
+  drop_threshold: 0.08
+  steepness: 15.0
+  upright_torso_angle_threshold: 0.15
+  # torso_angle alone is not enough: a person fallen toward/away from the
+  # camera ALSO reads torso_angle near 0 (that's exactly why angle-based
+  # cues are blind to that orientation) -- also requiring body_height_norm
+  # to look genuinely standing-height stops a foreshortened fall's own
+  # posture from being wrongly recorded as its "standing" baseline (found
+  # via real-video regression testing).
+  upright_body_height_norm_threshold: 0.85
+
+# V4.8: monocular 2D->3D pose lifting (src/pose_3d.py) -- the root-cause
+# fix for the foreshortening blind spot (a body pointed toward/away from
+# the camera has almost no lateral spread for ANY 2D-only angle feature
+# to measure). enabled=False (or mediapipe/the model file simply being
+# unavailable) makes every 3D-derived feature read as "no evidence"
+# everywhere it's consumed -- never a hard dependency.
+pose_3d:
+  enabled: true
+  model_path: "models/mediapipe/pose_landmarker_lite.task"
+  min_pose_detection_confidence: 0.3
+  min_visibility: 0.5   # below this mean landmark visibility, treat as no reading at all
+  crop_pad_ratio: 0.25  # BlazePose expects a full body with margin, not a tight box
+  # Real-time cost gate: only run 3D lifting when the cheap 2D height
+  # signal already looks suspicious (below this) or isn't calibrated yet
+  # at all -- never unconditionally on every normal standing frame. See
+  # src/config.py::Pose3DConfig for the full rationale.
+  height_gate_threshold: 0.85
+  # V6 Fix Set A (§2.2): per-side (asymmetric) torso-orientation
+  # correction. When one side's shoulder+hip landmarks are confidently
+  # more visible than the other's by more than this margin, that side's
+  # OWN shoulder->hip angle is also computed and the LARGER of it vs. the
+  # bilateral (midpoint) reading is kept -- provably monotonic (can only
+  # raise torso_angle_3d, never lower it). DESIGN MARGIN: the V6 spec's
+  # own suggested starting point, not yet tuned against a large real
+  # visibility-asymmetry dataset. See src/config.py::Pose3DConfig and
+  # src/pose_3d.py::Pose3DEstimator.estimate.
+  torso3d_asymmetry_threshold: 0.3
+
+# V6 Fix Set B: collapse_then_stillness -- a purely TEMPORAL confirmation
+# path (hard 0/1 gate) for a foreshortened/asymmetric lying posture that
+# no single-frame geometric signal above fully resolves. Requires a real
+# height-collapse SPIKE within the lookback window, followed by continuous
+# STILLNESS for the full still window, plus a real calibrated height
+# collapse right now. theta_spike/theta_still MEASURED from this repo's 2
+# real single-fall videos -- see src/config.py::MotionSignatureConfig and
+# MANDOWN_IMPLEMENTATION_REPORT_V6 for the raw numbers.
+motion_signature:
+  t_lookback_seconds: 5.0
+  t_still_seconds: 5.0
+  theta_spike: 0.12    # MEASURED: below the weaker of the 2 real fall onsets (0.137)
+  theta_still: 0.06    # MEASURED: above both real events' post-onset settled p95 (0.012, 0.053)
+  height_collapse_floor: 0.5   # reuses the same calibrated floor as fusion/height_collapse
+
+# V6 Fix Set C (§4.1): narrow-range rotation search, run ONLY when the
+# plain straight-crop re-acquisition (pose_failure section above) already
+# failed to find a previously-tracked person at all. Same frozen YOLO-pose
+# model, no retraining -- see src/detector.py::PersonDetector.
+# redetect_in_roi_with_rotation and src/config.py::RotationSearchConfig.
+rotation_search:
+  enabled: true
+  angle_step_degrees: 15.0
+  angle_decay_factor: 0.9
+
+# V6 Fix Set C (§4.2): confidence-decayed synthetic keypoint carry-forward
+# for a brief TRUE detection gap (straight-crop AND rotation search both
+# already failed this frame). Bounded to t_gap_max_seconds of real,
+# continuous non-detection -- see src/config.py::DetectionRecoveryConfig
+# and src/mandown_track_context.py::MandownTrackContext.
+# extrapolated_keypoints. Cannot be exercised on a single static image --
+# only validated conceptually/via unit test this round; real-footage
+# validation deferred to when live-feed testing resumes (see V6 report §5).
+detection_recovery:
+  enabled: true
+  t_gap_max_seconds: 3.0
+  confidence_decay_factor: 0.85
+
+# Evidence fusion (Phase 8): combine LSTM confidence with independent
+# feature-based confidence. Transparent weighted rule-based fusion.
+# V3: current down/floor-state (feature) evidence is the primary Mandown
+# criterion, LSTM is supporting — rebalanced from V2's LSTM-majority weights.
+fusion:
+  weight_lstm: 0.35
+  weight_feature: 0.45
+  weight_persistence: 0.20
+  # A single very strong signal can push to POSSIBLE_MANDOWN even if the
+  # weighted sum is moderate (avoid requiring strict AND between sources).
+  strong_signal_threshold: 0.85
+  possible_mandown_threshold: 0.45
+  confirmed_mandown_threshold: 0.65
+  pose_quality_floor: 0.3   # below this pose_quality, discount all evidence toward "uncertain"
+  # V3: strong + persistent geometric evidence alone reaches full MANDOWN,
+  # without needing LSTM corroboration (an already-lying person must not
+  # wait on the LSTM's 30-frame buffer, or a weak/wrong LSTM read).
+  geometric_confirm_threshold: 0.60
+  geometric_confirm_persistence_threshold: 0.65
+  # V4: mirror-image safeguard — a confident LSTM alone, sustained via the
+  # state machine's streak, must not confirm MANDOWN with zero geometric
+  # grounding. Real case: M_D_2.mp4 track 694 (down_score<=0.20 and
+  # persistence_score=0.0 for the whole event, lstm_mandown_prob~0.99 alone
+  # plateaued fusion at ~0.46 long enough to confirm). Calibrated against 4
+  # real confirmed true positives (down_score>=0.27 at their earliest
+  # up-tier frame) with margin to spare.
+  lstm_only_geometric_grounding_down_floor: 0.22
+  lstm_only_geometric_grounding_persistence_floor: 0.05
+  # V4.1: real RTSP false positive -- sustained deep bending / a small
+  # low-quality sitting detection, both with moderate (not lying-level)
+  # down_score, reached confirmed MANDOWN via a confidently-wrong LSTM.
+  # Calibrated against all 4 real videos: every genuine confirmed MANDOWN
+  # has down_score in [0.704, 0.933] and already independently qualifies
+  # via geometric_confirm_threshold below; worst-case synthetic standing
+  # bend tops out at down_score~0.55. Only caps the LSTM-assisted path.
+  confirmed_mandown_down_floor: 0.65
+  # V4.2: alternate path to the floor above, for a person fallen toward/
+  # away from the camera (foreshortened -- angle-based cues stay near
+  # "upright", capping down_score below the floor above even after
+  # height-collapse corroboration). Three conditions, each excluding a
+  # DIFFERENT adversarial case -- floor_proximity_score alone is NOT
+  # enough: it also absorbs torso-angle evidence via max(), so a deep
+  # forward bend drives it just as high (0.89) as a genuine fall (0.74) --
+  # an earlier version of this gate used floor_proximity_score alone and
+  # reopened the V4.1 bending false positive through this new path.
+  # height_collapse_cue (driven only by body_height_norm, never by torso
+  # angle) is what actually excludes bending (~0.15 vs a genuine fall's
+  # ~0.93); pose_quality_floor excludes a separate adversarial case, an
+  # occluded seated person (~0.17 vs a genuine fall's ~0.48). See
+  # src/config.py::FusionConfig for the full measured breakdown.
+  confirmed_mandown_floor_proximity_floor: 0.70
+  confirmed_mandown_height_collapse_floor: 0.5
+  # V4.5: real RTSP false positive -- a person bending forward on their feet
+  # to reach the ground was confirmed MANDOWN through this path. This path
+  # exists because torso_angle is blind (~0.0) for a genuine foreshortened
+  # fall, but it never actually checked torso_angle was near-zero, so it
+  # fired just as easily for a deep bend (torso_angle~0.64, not blind at
+  # all -- down_score/kneeling_penalty already carry real "not down"
+  # evidence for that case, bypassed entirely by this path). See
+  # src/config.py::FusionConfig for the measured numbers.
+  alternate_grounding_torso_angle_ceiling: 0.2
+  # V4.7 (attempted, REVERTED): a fourth path combining moderate-but-
+  # elevated down_score/floor_proximity/height_collapse readings was tried
+  # for a real RTSP miss (person lying flat, torso_angle=0.22), but a
+  # synthetic crouching fixture measured comparable-or-higher numbers on
+  # the same three signals and reached MANDOWN under a confident LSTM once
+  # this path was added -- reverted before shipping. See
+  # src/config.py::FusionConfig for the measured numbers.
+  #
+  # V4.8: the genuinely new discriminator the V4.7 attempt needed, via
+  # monocular 2D->3D pose lifting (src/pose_3d.py) -- torso_angle_3d is a
+  # direct measurement of real torso orientation, so crouching (torso
+  # vertical in 3D despite a shortened bbox) reads LOW here, unlike the 2D
+  # height_collapse proxy that couldn't tell the two apart. Confident 3D
+  # lying evidence plus the same minimal geometric floor the LSTM-alone
+  # safeguard already requires is sufficient on its own -- not gated
+  # behind floor_proximity/height_collapse.
+  pose3d_lying_angle_floor: 0.55
+  # V6.1 (Objective 1): floor for body_axis_angle_3d (long-baseline
+  # shoulder->ankle 3D angle on the leg already confirmed via 2D keypoint
+  # confidence to be flat/extended -- never touches the hip landmark
+  # MediaPipe's kinematic prior was found to bias for a raised-knee
+  # configuration). Independent corroborator alongside torso_angle_3d,
+  # same gating. Defaults to the same value as pose3d_lying_angle_floor --
+  # not yet independently tuned against real footage. See
+  # src/config.py::FusionConfig for the full rationale.
+  pose3d_axis_lying_angle_floor: 0.55
+
+# Temporal state machine (Phase 9): hysteresis in frames to avoid single-frame
+# flicker triggering/clearing an alert.
+state_machine:
+  frames_to_confirm_mandown: 8      # consecutive strong-fusion frames before NORMAL/POSSIBLE -> MANDOWN
+  frames_to_enter_possible: 3       # consecutive moderate-fusion frames before NORMAL -> POSSIBLE_MANDOWN
+  frames_to_recover_normal: 45      # consecutive clearly-normal frames before MANDOWN/POSSIBLE -> NORMAL
+  cooldown_frames: 90               # min frames between repeated alert events for the same track
+
+# V2: pose-failure handling (Phase 3). When a track drops out of the normal
+# detection pass, retry a targeted ROI re-acquisition around its last known
+# location for up to hold_frames before giving up, and discount confidence
+# proportionally to how long the gap was.
+pose_failure:
+  hold_frames: 15
+  gap_tolerance_frames: 2            # gaps this short or shorter don't decay hysteresis progress
+  roi_reacquisition_padding_ratio: 0.6
+  max_reacquisitions_per_frame: 5    # bounds worst-case extra pose-model calls in one frame
+  min_confidence_multiplier: 0.5     # floor for the gap-length confidence discount
+  # V4.4: how long (wall-clock seconds) a confirmed-fallen track's last
+  # known box keeps drawing after it drops out of detection entirely --
+  # was a hardcoded 10s tied to nothing; real feedback found it created a
+  # visibly "stuck" red box + MANDOWN banner long after the person may
+  # have already gotten up and left, reading as a false alert with nobody
+  # there. Purely a rendering choice -- the underlying MANDOWN state is
+  # unaffected by how long this marker is drawn.
+  occluded_marker_seconds: 3.0
+
+logging_level: INFO

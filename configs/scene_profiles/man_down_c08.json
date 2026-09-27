@@ -1,0 +1,37 @@
+{
+  "camera_id": "man_down_c08",
+  "frame_width": 1920,
+  "frame_height": 1080,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "unknown",
+  "perspective": {
+    "coef_h_x": -0.06873092621557933,
+    "coef_h_y": 0.04837433575658945,
+    "intercept_h": 609.9485339187343,
+    "coef_w_x": 0.03484746673413125,
+    "coef_w_y": 0.3556584919870732,
+    "intercept_w": -30.464657725556137,
+    "r_squared": 0.01923387231228957,
+    "num_samples": 210,
+    "is_valid": false
+  },
+  "floor_region": {
+    "band_low": 705.2657470703125,
+    "band_high": 871.3475952148438,
+    "confidence": 1.0,
+    "num_samples": 210,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 623.5115852355957,
+    "p25_height": 555.0132255554199,
+    "p75_height": 639.5059623718262,
+    "height_std": 43.28666555653177,
+    "median_width": 273.84222412109375,
+    "p25_width": 220.22589111328125,
+    "p75_width": 287.0429992675781,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

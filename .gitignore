@@ -1,0 +1,58 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+
+# Data files (too large for git)
+data/raw/
+data/processed/
+data/splits/
+*.npy
+
+# YOLO model weights (downloaded automatically, re-downloadable)
+yolo*.pt
+
+# Video files
+*.mp4
+*.MP4
+*.avi
+*.AVI
+*.mov
+*.MOV
+*.mkv
+*.MKV
+*.webm
+*.WEBM
+*.wmv
+*.WMV
+*.flv
+*.FLV
+*.m4v
+*.M4V
+
+# Test/output artifacts
+output/
+input/
+events/
+
+# Markdown docs (only README.md is tracked)
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+tmp/
+*.tmp

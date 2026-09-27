@@ -1,0 +1,35 @@
+{
+  "camera_id": "md2",
+  "frame_width": 1280,
+  "frame_height": 720,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_right",
+  "perspective": {
+    "slope_h": 0.4069868173608375,
+    "intercept_h": 2.2186047348167,
+    "slope_w": 0.15509645201313738,
+    "intercept_w": 10.574492532622381,
+    "r_squared": 0.5081955090244696,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 295.668550491333,
+    "band_high": 324.08167839050293,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 76.80606842041016,
+    "p25_height": 76.32718276977539,
+    "p75_height": 76.92301940917969,
+    "height_std": 0.6772271300194704,
+    "median_width": 34.0601806640625,
+    "p25_width": 33.53680419921875,
+    "p75_width": 34.69596862792969,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

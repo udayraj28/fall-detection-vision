@@ -1,0 +1,37 @@
+{
+  "camera_id": "rtsp_192.168.100",
+  "frame_width": 1280,
+  "frame_height": 720,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_right",
+  "perspective": {
+    "coef_h_x": 0.1559451049969591,
+    "coef_h_y": 0.08707319563210991,
+    "intercept_h": 104.05748230674979,
+    "coef_w_x": 0.04039827682177536,
+    "coef_w_y": 0.1132259300405137,
+    "intercept_w": 24.1695405174023,
+    "r_squared": 0.6240108512103004,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 292.8905448913574,
+    "band_high": 378.26929092407227,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 231.01246643066406,
+    "p25_height": 198.17764282226562,
+    "p75_height": 243.1360626220703,
+    "height_std": 23.00753677524019,
+    "median_width": 97.54859924316406,
+    "p25_width": 81.63441467285156,
+    "p75_width": 100.79718017578125,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

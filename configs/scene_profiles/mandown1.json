@@ -1,0 +1,35 @@
+{
+  "camera_id": "mandown1",
+  "frame_width": 1536,
+  "frame_height": 866,
+  "calibration_confidence": 1.0,
+  "dominant_floor_direction": "tilted_up_right",
+  "perspective": {
+    "slope_h": -39.883211860469146,
+    "intercept_h": 31247.477280486557,
+    "slope_w": 138.39968386082475,
+    "intercept_w": -107534.70871954088,
+    "r_squared": 0.9244356844088101,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 777.8632659912109,
+    "band_high": 786.2656707763672,
+    "confidence": 1.0,
+    "num_samples": 500,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 229.97134399414062,
+    "p25_height": 222.61737060546875,
+    "p75_height": 237.33572387695312,
+    "height_std": 7.359256275113451,
+    "median_width": 98.90625,
+    "p25_width": 73.78521728515625,
+    "p75_width": 124.01644897460938,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}

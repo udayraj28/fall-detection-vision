@@ -1,0 +1,37 @@
+{
+  "camera_id": "Charlton_ch1_20240125143626_20240125143654",
+  "frame_width": 2560,
+  "frame_height": 1440,
+  "calibration_confidence": 0.86,
+  "dominant_floor_direction": "tilted_up_left",
+  "perspective": {
+    "coef_h_x": 0.8122364398220077,
+    "coef_h_y": 0.4224375077094925,
+    "intercept_h": -1467.7922736751595,
+    "coef_w_x": 0.4413145634283499,
+    "coef_w_y": 0.2537792007046198,
+    "intercept_w": -875.244056108541,
+    "r_squared": 0.908280985235233,
+    "num_samples": 40,
+    "is_valid": true
+  },
+  "floor_region": {
+    "band_low": 963.5117454528809,
+    "band_high": 1192.7831764221191,
+    "confidence": 0.8,
+    "num_samples": 40,
+    "is_valid": true
+  },
+  "size_stats": {
+    "sample_count": 30,
+    "median_height": 408.57379150390625,
+    "p25_height": 395.7261199951172,
+    "p75_height": 439.8414764404297,
+    "height_std": 35.701671632914206,
+    "median_width": 169.3870849609375,
+    "p25_width": 153.571044921875,
+    "p75_width": 188.88519287109375,
+    "calibration_confidence": 1.0,
+    "is_calibrated": true
+  }
+}
